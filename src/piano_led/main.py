@@ -5,8 +5,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import time
+import json
+from wsgiref.simple_server import make_server
 
 from piano_led.app import build_application
+from piano_led.web.server import create_web_app
 from piano_led.midi.input import MidoMidiInputPort, list_mido_input_ports
 from piano_led.midi.output import list_mido_output_ports
 
@@ -31,6 +34,14 @@ def build_parser() -> argparse.ArgumentParser:
     midi_monitor.add_argument("--seconds", type=float, default=None, help="Optional bounded monitoring duration")
     run_live = subparsers.add_parser("run-live", help="Run the live piano-to-LED loop")
     run_live.add_argument("--seconds", type=float, default=None, help="Optional bounded runtime duration")
+    keymap_generate = subparsers.add_parser("keymap-generate", help="Generate and save the base keymap")
+    keymap_generate.add_argument("--total-leds", type=int, required=True)
+    keymap_generate.add_argument("--first-led", type=int, required=True)
+    keymap_generate.add_argument("--direction", choices=["left_to_right", "right_to_left"], required=True)
+    web_serve = subparsers.add_parser("web-serve", help="Serve the browser UI for tablet access")
+    web_serve.add_argument("--host", default="0.0.0.0")
+    web_serve.add_argument("--port", type=int, default=8080)
+    web_serve.add_argument("--seconds", type=float, default=None, help="Optional bounded runtime duration")
     return parser
 
 
@@ -71,6 +82,32 @@ def main(argv: list[str] | None = None) -> int:
 
     initialize_leds = args.command in {"led-chase", "led-clear", "midi-monitor", "run-live", None}
     application = build_application(project_root, initialize_leds=initialize_leds)
+
+    if args.command == "keymap-generate":
+        payload = application.runtime.generate_keymap(
+            total_leds=args.total_leds,
+            first_led=args.first_led,
+            direction=args.direction,
+        )
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if args.command == "web-serve":
+        app = create_web_app(application.runtime)
+        server = make_server(args.host, args.port, app)
+        server.timeout = 0.5
+        print(f"Serving Piano LED Learn at http://{args.host}:{args.port}")
+        start = time.monotonic()
+        try:
+            while True:
+                server.handle_request()
+                if args.seconds is not None and (time.monotonic() - start) >= max(0.0, args.seconds):
+                    break
+        except KeyboardInterrupt:
+            print("Stopped web server.")
+        finally:
+            server.server_close()
+        return 0
 
     if args.command == "led-chase":
         for _ in range(args.steps):
