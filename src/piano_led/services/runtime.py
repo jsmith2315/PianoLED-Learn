@@ -15,6 +15,7 @@ from piano_led.leds.driver_base import LedDriver
 from piano_led.leds.key_mapper import KeyMapper
 from piano_led.midi.input import MidiInputPort
 from piano_led.services.state_store import StateStore
+from piano_led.songs.library import SongLibrary
 
 
 class PianoLedRuntime:
@@ -28,6 +29,7 @@ class PianoLedRuntime:
         settings_store: SettingsStore | None = None,
         keymap_store: KeymapStore | None = None,
         state_store: StateStore | None = None,
+        song_library: SongLibrary | None = None,
     ) -> None:
         self.settings = settings
         self.keymap = keymap
@@ -35,6 +37,8 @@ class PianoLedRuntime:
         self.settings_store = settings_store
         self.keymap_store = keymap_store
         self.state_store = state_store or StateStore()
+        self.song_library = song_library
+        self.selected_song_path: str | None = None
         self.key_mapper = KeyMapper(keymap)
         self.active_notes: set[int] = set()
         self.last_note_event: dict | None = None
@@ -57,6 +61,43 @@ class PianoLedRuntime:
             f"midi_backend={self.settings.midi.backend}, "
             f"midi_in={self.settings.midi.input_port_name or '<unset>'}"
         )
+
+    def list_songs(self) -> list[dict]:
+        """Return the currently available MIDI songs."""
+
+        if self.song_library is None:
+            return []
+        return self.song_library.list_songs()
+
+    def get_selected_song(self) -> dict | None:
+        """Return metadata for the currently selected song, if any."""
+
+        if self.selected_song_path is None:
+            return None
+        for song in self.list_songs():
+            if song["relative_path"] == self.selected_song_path:
+                return song
+        self.selected_song_path = None
+        return None
+
+    def get_song_selection_state(self) -> dict:
+        """Return the available songs plus the current selection."""
+
+        return {
+            "songs": self.list_songs(),
+            "selected_song_path": self.selected_song_path,
+            "selected_song": self.get_selected_song(),
+        }
+
+    def select_song(self, relative_path: str) -> dict:
+        """Select a MIDI file from the current song library."""
+
+        for song in self.list_songs():
+            if song["relative_path"] == relative_path:
+                self.selected_song_path = relative_path
+                self.refresh_state()
+                return self.get_song_selection_state()
+        raise ValueError(f"Unknown song selection: {relative_path}")
 
     def handle_note_event(self, event: NoteEvent) -> None:
         self.last_note_event = {
@@ -325,6 +366,9 @@ class PianoLedRuntime:
             last_note_event=self.last_note_event,
             calibration=calibration,
             keymap=self.keymap.to_dict(),
+            songs=self.list_songs(),
+            selected_song_path=self.selected_song_path,
+            selected_song=self.get_selected_song(),
         )
 
     def get_state(self) -> dict:

@@ -1,6 +1,8 @@
 """Runtime tests covering live note lighting and calibration capture behavior."""
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from piano_led.config.settings import AppSettings, LedSettings
 from piano_led.core.models import NoteEvent
@@ -8,6 +10,7 @@ from piano_led.keymap.models import Keymap
 from piano_led.leds.driver_fake import FakeLedDriver
 from piano_led.midi.input import FakeMidiInputPort
 from piano_led.services.runtime import PianoLedRuntime
+from piano_led.songs.library import SongLibrary
 
 
 class PianoLedRuntimeTest(unittest.TestCase):
@@ -197,3 +200,35 @@ class PianoLedRuntimeTest(unittest.TestCase):
         runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
         self.assertEqual(driver.pixels[1], (17, 34, 51))
         self.assertEqual(driver.pixels[2], (68, 85, 102))
+
+    def test_runtime_can_select_a_valid_song_from_library(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        with TemporaryDirectory() as tmp:
+            midi_root = Path(tmp)
+            midi_root.joinpath("etude.mid").write_bytes(b"mid")
+            runtime = PianoLedRuntime(
+                settings=settings,
+                keymap=Keymap(note_to_led={60: 1}),
+                led_driver=driver,
+                song_library=SongLibrary(midi_root),
+            )
+
+            selection = runtime.select_song("etude.mid")
+
+            self.assertEqual(selection["selected_song_path"], "etude.mid")
+            self.assertEqual(selection["selected_song"]["display_title"], "etude")
+
+    def test_runtime_rejects_unknown_song_selection(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        with TemporaryDirectory() as tmp:
+            runtime = PianoLedRuntime(
+                settings=settings,
+                keymap=Keymap(note_to_led={60: 1}),
+                led_driver=driver,
+                song_library=SongLibrary(Path(tmp)),
+            )
+
+            with self.assertRaises(ValueError):
+                runtime.select_song("missing.mid")
