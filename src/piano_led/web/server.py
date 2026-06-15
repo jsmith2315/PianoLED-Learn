@@ -86,6 +86,7 @@ KEYMAP_HTML = """<!doctype html>
           <label>Selected Note</label>
           <input id="selected-note" type="number" value="60">
           <button onclick="startCalibration()">Start Calibration</button>
+          <button onclick="stopCalibration()">Stop Calibration</button>
           <button onclick="armNextKey()">Use Next Piano Key</button>
           <button onclick="selectKey()">Select Key</button>
           <button onclick="shiftLed('left')">Shift Left on Piano</button>
@@ -134,6 +135,7 @@ KEYMAP_HTML = """<!doctype html>
         document.getElementById('direction').value = settings.led.strip_direction;
         document.getElementById('live-output').textContent = JSON.stringify({
           active_notes: liveState.active_notes,
+          last_note_event: liveState.last_note_event,
           midi_backend: liveState.settings.midi.backend,
           midi_in: liveState.settings.midi.input_port_name,
           calibration_active: calibration.active,
@@ -179,6 +181,14 @@ KEYMAP_HTML = """<!doctype html>
 
       async function armNextKey() {
         await runAction(() => fetchJson('/api/calibration/arm', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: '{}'
+        }));
+      }
+
+      async function stopCalibration() {
+        await runAction(() => fetchJson('/api/calibration/stop', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: '{}'
@@ -297,6 +307,9 @@ def create_web_app(runtime: PianoLedRuntime):
 
         if method == "POST" and path == "/api/calibration/arm":
             return _json_response(start_response, runtime.arm_calibration_note_capture())
+
+        if method == "POST" and path == "/api/calibration/stop":
+            return _json_response(start_response, runtime.stop_calibration())
 
         if method == "POST" and path == "/api/calibration/select":
             session = runtime.calibration_select_key(int(body["note"]))

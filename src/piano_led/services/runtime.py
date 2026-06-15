@@ -37,6 +37,7 @@ class PianoLedRuntime:
         self.state_store = state_store or StateStore()
         self.key_mapper = KeyMapper(keymap)
         self.active_notes: set[int] = set()
+        self.last_note_event: dict | None = None
         self.calibration_session: CalibrationSession | None = None
         self.awaiting_calibration_note = False
         self.chase_index = 0
@@ -56,6 +57,12 @@ class PianoLedRuntime:
         )
 
     def handle_note_event(self, event: NoteEvent) -> None:
+        self.last_note_event = {
+            "event_type": event.event_type,
+            "note": event.note,
+            "velocity": event.velocity,
+            "source": event.source,
+        }
         if event.event_type == "note_on" and self.calibration_session is not None and self.awaiting_calibration_note:
             self.capture_calibration_note(event.note)
             return
@@ -137,6 +144,15 @@ class PianoLedRuntime:
         if self.calibration_session is None:
             self.start_calibration()
         self.awaiting_calibration_note = True
+        self.refresh_state()
+        return self.get_calibration_state()
+
+    def stop_calibration(self) -> dict:
+        """Exit calibration mode and clear any highlighted selection."""
+
+        self.calibration_session = None
+        self.awaiting_calibration_note = False
+        self.clear_leds()
         self.refresh_state()
         return self.get_calibration_state()
 
@@ -224,6 +240,7 @@ class PianoLedRuntime:
         self.state_store.update(
             settings=self.settings.to_dict(),
             active_notes=sorted(self.active_notes),
+            last_note_event=self.last_note_event,
             calibration=calibration,
             keymap=self.keymap.to_dict(),
         )

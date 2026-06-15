@@ -114,3 +114,30 @@ class PianoLedRuntimeTest(unittest.TestCase):
 
         runtime.calibration_shift_piano("right")
         self.assertEqual(runtime.keymap.note_to_led[60], 5)
+
+    def test_runtime_can_stop_calibration_and_clear_selection(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 1}), led_driver=driver)
+
+        runtime.start_calibration()
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
+        stopped_state = runtime.stop_calibration()
+
+        self.assertFalse(stopped_state["active"])
+        self.assertFalse(stopped_state["awaiting_note"])
+        self.assertIsNone(stopped_state["session"])
+        self.assertEqual(driver.pixels[1], (0, 0, 0))
+
+    def test_runtime_state_keeps_last_note_event_for_ui(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 1}), led_driver=driver)
+
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=70, source="midi"))
+        state = runtime.get_state()
+
+        self.assertEqual(
+            state["last_note_event"],
+            {"event_type": "note_on", "note": 60, "velocity": 70, "source": "midi"},
+        )

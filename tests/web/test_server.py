@@ -56,10 +56,12 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("What to Expect", html)
         self.assertIn("Last Response", html)
         self.assertIn("Use Next Piano Key", html)
+        self.assertIn("Stop Calibration", html)
         self.assertIn("Live Runtime", html)
         self.assertIn("Shift Left on Piano", html)
         self.assertIn("Shift Right on Piano", html)
         self.assertIn("cache: 'no-store'", html)
+        self.assertIn("last_note_event", html)
 
         status, headers, payload = _invoke(app, "GET", "/api/keymap")
         keymap_state = json.loads(payload.decode("utf-8"))
@@ -78,6 +80,10 @@ class WebServerTest(unittest.TestCase):
         status, _, payload = _invoke(app, "POST", "/api/calibration/arm", b"{}")
         calibration_state = json.loads(payload.decode("utf-8"))
         self.assertTrue(calibration_state["awaiting_note"])
+
+        status, _, payload = _invoke(app, "POST", "/api/calibration/stop", b"{}")
+        calibration_state = json.loads(payload.decode("utf-8"))
+        self.assertFalse(calibration_state["active"])
 
     def test_calibration_shift_api_accepts_piano_direction(self) -> None:
         application = build_application()
