@@ -1,3 +1,5 @@
+"""Long-lived runtime behavior for note lighting, calibration, and state."""
+
 from __future__ import annotations
 
 from piano_led.config.settings import AppSettings, SettingsStore
@@ -16,6 +18,8 @@ from piano_led.services.state_store import StateStore
 
 
 class PianoLedRuntime:
+    """Coordinate note events, keymaps, LED output, and runtime state."""
+
     def __init__(
         self,
         settings: AppSettings,
@@ -39,10 +43,15 @@ class PianoLedRuntime:
         self.refresh_state()
 
     def describe(self) -> str:
+        """Return a compact summary for logs, status commands, and services."""
+
         return (
             f"Piano LED runtime ready: leds={self.settings.led.total_leds}, "
             f"keymap_notes={len(self.keymap.note_to_led)}, "
-            f"calibration_active={self.calibration_session is not None}"
+            f"calibration_active={self.calibration_session is not None}, "
+            f"led_backend={self.settings.led.backend}, "
+            f"midi_backend={self.settings.midi.backend}, "
+            f"midi_in={self.settings.midi.input_port_name or '<unset>'}"
         )
 
     def handle_note_event(self, event: NoteEvent) -> None:

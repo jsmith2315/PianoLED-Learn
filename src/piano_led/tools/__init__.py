@@ -1,2 +1,1 @@
-"""Standalone helpers."""
-
+"""Standalone helper entrypoints and utilities."""

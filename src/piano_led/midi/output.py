@@ -1,3 +1,5 @@
+"""Live MIDI output abstractions and mido-backed adapters."""
+
 from __future__ import annotations
 
 import importlib
@@ -6,6 +8,7 @@ from piano_led.core.models import NoteEvent
 
 
 class MidiOutputPort:
+    """Base MIDI output interface."""
     def open(self) -> None:
         return None
 
@@ -14,6 +17,7 @@ class MidiOutputPort:
 
 
 class FakeMidiOutputPort(MidiOutputPort):
+    """In-memory MIDI output used by tests and local development."""
     def __init__(self) -> None:
         self.sent_events: list[NoteEvent] = []
 
@@ -22,6 +26,7 @@ class FakeMidiOutputPort(MidiOutputPort):
 
 
 class MidoMidiOutputPort(MidiOutputPort):
+    """Real MIDI output wrapper backed by the ``mido`` library."""
     def __init__(self, port_name: str, mido_module=None) -> None:
         self.port_name = port_name
         self._mido = mido_module
@@ -54,6 +59,7 @@ class MidoMidiOutputPort(MidiOutputPort):
 
 
 def list_mido_output_ports(mido_module=None) -> list[str]:
+    """Return deduplicated visible MIDI output port names."""
     module = mido_module or importlib.import_module("mido")
     seen: set[str] = set()
     unique: list[str] = []

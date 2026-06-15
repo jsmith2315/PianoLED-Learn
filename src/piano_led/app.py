@@ -1,3 +1,5 @@
+"""Application factory and backend wiring for Piano LED Learn."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,6 +18,8 @@ from piano_led.services.state_store import StateStore
 
 @dataclass
 class Application:
+    """Container for the runtime and currently selected backends."""
+
     runtime: PianoLedRuntime
     settings_store: SettingsStore
     keymap_store: KeymapStore
@@ -24,7 +28,13 @@ class Application:
     midi_output: FakeMidiOutputPort | MidoMidiOutputPort
 
 
-def build_application(project_root: Path | None = None) -> Application:
+def build_application(project_root: Path | None = None, initialize_leds: bool = True) -> Application:
+    """Build the configured runtime and I/O adapters.
+
+    Non-hardware commands can pass ``initialize_leds=False`` to avoid touching
+    the real WS281X driver while still reading settings and keymaps.
+    """
+
     root = project_root or Path.cwd()
     settings_path = root / "data" / "settings" / "settings.json"
     keymap_path = root / "data" / "keymaps" / "default_88.json"
@@ -41,7 +51,7 @@ def build_application(project_root: Path | None = None) -> Application:
         )
         keymap_store.save(keymap)
 
-    if settings.led.backend == "rpi_ws281x":
+    if initialize_leds and settings.led.backend == "rpi_ws281x":
         led_driver = create_rpi_led_driver(settings)
     else:
         led_driver = FakeLedDriver(total_leds=settings.led.total_leds)

@@ -1,2 +1,1 @@
-"""Browser UI layer."""
-
+"""Browser UI and API layer."""

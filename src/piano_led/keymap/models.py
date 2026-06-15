@@ -1,3 +1,5 @@
+"""Data models for note-to-LED keymaps."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -5,6 +7,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Keymap:
+    """Mapping between MIDI note numbers and LED indexes."""
     note_to_led: dict[int, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, dict[str, int]]:
@@ -14,4 +17,3 @@ class Keymap:
     def from_dict(cls, payload: dict) -> "Keymap":
         data = payload.get("note_to_led", {})
         return cls(note_to_led={int(note): int(led) for note, led in data.items()})
-

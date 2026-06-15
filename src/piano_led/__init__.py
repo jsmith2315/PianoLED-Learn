@@ -1,2 +1,1 @@
-"""Piano LED visualizer package."""
-
+"""Source package for the Piano LED Learn application."""

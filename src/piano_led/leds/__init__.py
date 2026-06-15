@@ -1,2 +1,1 @@
-"""LED drivers and render helpers."""
-
+"""LED driver abstractions and helper utilities."""

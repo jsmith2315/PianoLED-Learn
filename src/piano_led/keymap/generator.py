@@ -1,3 +1,5 @@
+"""Base keymap generation from strip direction and LED count."""
+
 from __future__ import annotations
 
 from piano_led.core.notes import HIGHEST_PIANO_NOTE, LOWEST_PIANO_NOTE
@@ -5,6 +7,7 @@ from piano_led.keymap.models import Keymap
 
 
 class KeymapGenerator:
+    """Generate a first-pass 88-key note-to-LED map."""
     def generate(self, total_leds: int, first_led: int, direction: str) -> Keymap:
         note_count = HIGHEST_PIANO_NOTE - LOWEST_PIANO_NOTE + 1
         if total_leds <= 0:
@@ -22,4 +25,3 @@ class KeymapGenerator:
             mapping[note] = led_index
 
         return Keymap(note_to_led=mapping)
-

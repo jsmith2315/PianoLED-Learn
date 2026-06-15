@@ -74,3 +74,29 @@ When the live MIDI backend is configured in `data/settings/settings.json`, use:
 ```bash
 python3 -m piano_led midi-monitor
 ```
+
+## Daily-use live command
+
+For normal operation on the Pi, use:
+
+```bash
+sudo python3 -m piano_led run-live
+```
+
+That command prints the selected LED and MIDI backends, opens the configured live
+MIDI input, and keeps the piano-to-LED runtime active until you stop it.
+
+## Systemd service for this repo
+
+This repo now includes a service file at:
+
+- `deploy/systemd/piano-led-live.service`
+
+Install and start it with:
+
+```bash
+sudo cp deploy/systemd/piano-led-live.service /etc/systemd/system/piano-led-live.service
+sudo systemctl daemon-reload
+sudo systemctl enable piano-led-live.service
+sudo systemctl start piano-led-live.service
+```

@@ -1,3 +1,5 @@
+"""JSON persistence helpers for keymap files."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +9,7 @@ from piano_led.keymap.models import Keymap
 
 
 class KeymapStore:
+    """Load and save keymaps from JSON files on disk."""
     def __init__(self, path: Path) -> None:
         self.path = path
 
@@ -20,4 +23,3 @@ class KeymapStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("w", encoding="utf-8") as handle:
             json.dump(keymap.to_dict(), handle, indent=2)
-

@@ -1,3 +1,5 @@
+"""Minimal WSGI app for the tablet/browser control surface."""
+
 from __future__ import annotations
 
 import json
@@ -37,18 +39,21 @@ INDEX_HTML = """<!doctype html>
 
 
 def _json_response(start_response, payload: dict, status: str = "200 OK"):
+    """Build a JSON WSGI response."""
     body = json.dumps(payload).encode("utf-8")
     start_response(status, [("Content-Type", "application/json"), ("Content-Length", str(len(body)))])
     return [body]
 
 
 def _html_response(start_response, body: str):
+    """Build an HTML WSGI response."""
     payload = body.encode("utf-8")
     start_response("200 OK", [("Content-Type", "text/html; charset=utf-8"), ("Content-Length", str(len(payload)))])
     return [payload]
 
 
 def create_web_app(runtime: PianoLedRuntime):
+    """Create the WSGI application bound to a specific runtime instance."""
     def application(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -109,4 +114,3 @@ def create_web_app(runtime: PianoLedRuntime):
         return _json_response(start_response, {"error": "not_found", "path": path}, status="404 Not Found")
 
     return application
-

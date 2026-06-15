@@ -1,3 +1,5 @@
+"""JSON-backed settings models for LED and MIDI configuration."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +9,7 @@ from pathlib import Path
 
 @dataclass
 class LedSettings:
+    """LED-strip parameters and backend selection."""
     total_leds: int = 176
     leds_per_meter: int = 144
     note_color: str = "#00b894"
@@ -25,6 +28,7 @@ class LedSettings:
 
 @dataclass
 class MidiSettings:
+    """MIDI backend selection and configured port names."""
     backend: str = "fake"
     input_port_name: str = ""
     output_port_name: str = ""
@@ -32,6 +36,7 @@ class MidiSettings:
 
 @dataclass
 class AppSettings:
+    """Top-level settings document stored on disk."""
     led: LedSettings = field(default_factory=LedSettings)
     midi: MidiSettings = field(default_factory=MidiSettings)
     selected_keymap: str = "default_88.json"
@@ -47,6 +52,7 @@ class AppSettings:
 
 
 class SettingsStore:
+    """Load and save ``AppSettings`` as JSON."""
     def __init__(self, path: Path) -> None:
         self.path = path
 

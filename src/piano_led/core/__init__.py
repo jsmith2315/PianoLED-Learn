@@ -1,2 +1,1 @@
-"""Core helpers and shared models."""
-
+"""Core note, color, and shared data helpers."""

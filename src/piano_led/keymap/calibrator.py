@@ -1,3 +1,5 @@
+"""Interactive keymap calibration session state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,6 +9,7 @@ from piano_led.keymap.models import Keymap
 
 @dataclass
 class CalibrationSession:
+    """State machine for walking note-by-note through keymap calibration."""
     keymap: Keymap
     note_order: list[int]
     selected_note: int | None = None
@@ -42,4 +45,3 @@ class CalibrationSession:
             "completed_notes": self.completed_notes,
             "remaining_notes": [note for note in self.note_order if note not in self.completed_notes],
         }
-

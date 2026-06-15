@@ -1,3 +1,5 @@
+"""Command-line entrypoints for local development and Raspberry Pi operation."""
+
 from __future__ import annotations
 
 import argparse
@@ -10,6 +12,8 @@ from piano_led.midi.output import list_mido_output_ports
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Create the top-level CLI parser."""
+
     parser = argparse.ArgumentParser(description="Piano LED Learn command line")
     parser.add_argument("--project-root", default=".", help="Project root containing data/ and config files")
 
@@ -25,10 +29,30 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("led-clear", help="Clear the LED strip")
     midi_monitor = subparsers.add_parser("midi-monitor", help="Subscribe to the configured live MIDI input")
     midi_monitor.add_argument("--seconds", type=float, default=None, help="Optional bounded monitoring duration")
+    run_live = subparsers.add_parser("run-live", help="Run the live piano-to-LED loop")
+    run_live.add_argument("--seconds", type=float, default=None, help="Optional bounded runtime duration")
     return parser
 
 
+def run_midi_loop(midi_input: MidoMidiInputPort, seconds: float | None) -> int:
+    """Open the configured MIDI input and keep the process alive."""
+
+    midi_input.open()
+    print(f"Listening to MIDI input: {midi_input.port_name}")
+    if seconds is not None:
+        time.sleep(max(0.0, seconds))
+        return 0
+    try:
+        while True:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("Stopped MIDI monitor.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    """Run the requested CLI command and return a process exit code."""
+
     parser = build_parser()
     args = parser.parse_args(argv or [])
     project_root = Path(args.project_root).resolve()
@@ -45,7 +69,8 @@ def main(argv: list[str] | None = None) -> int:
             print("mido backend is not installed yet on this machine.")
         return 0
 
-    application = build_application(project_root)
+    initialize_leds = args.command in {"led-chase", "led-clear", "midi-monitor", "run-live", None}
+    application = build_application(project_root, initialize_leds=initialize_leds)
 
     if args.command == "led-chase":
         for _ in range(args.steps):
@@ -62,17 +87,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "midi-monitor":
         midi_input = application.midi_input
         if isinstance(midi_input, MidoMidiInputPort):
-            midi_input.open()
-            print(f"Listening to MIDI input: {midi_input.port_name}")
-            if args.seconds is not None:
-                time.sleep(max(0.0, args.seconds))
-                return 0
-            try:
-                while True:
-                    time.sleep(0.5)
-            except KeyboardInterrupt:
-                print("Stopped MIDI monitor.")
-            return 0
+            return run_midi_loop(midi_input, args.seconds)
+        print("Configured MIDI backend is fake; set midi.backend to 'mido' and a real input port name.")
+        return 0
+
+    if args.command == "run-live":
+        print(application.runtime.describe())
+        midi_input = application.midi_input
+        if isinstance(midi_input, MidoMidiInputPort):
+            return run_midi_loop(midi_input, args.seconds)
         print("Configured MIDI backend is fake; set midi.backend to 'mido' and a real input port name.")
         return 0
 

@@ -1,2 +1,1 @@
-"""Keymap generation, storage, and calibration."""
-
+"""Keymap generation, storage, and calibration helpers."""

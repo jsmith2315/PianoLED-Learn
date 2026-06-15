@@ -1,0 +1,15 @@
+[Unit]
+Description=Piano LED Learn Live Runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/PianoLED-Learn
+ExecStart=/usr/bin/python3 -m piano_led run-live
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+

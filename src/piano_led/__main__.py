@@ -1,3 +1,5 @@
+"""Installed-package entrypoint for ``python -m piano_led``."""
+
 import sys
 
 from piano_led.main import main

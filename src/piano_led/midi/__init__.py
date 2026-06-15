@@ -1,2 +1,1 @@
-"""MIDI interfaces and adapters."""
-
+"""MIDI interfaces, fake ports, and live adapters."""

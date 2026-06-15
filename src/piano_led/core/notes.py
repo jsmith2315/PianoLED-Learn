@@ -1,3 +1,5 @@
+"""Helpers for reasoning about piano note numbers and key colors."""
+
 from __future__ import annotations
 
 
@@ -7,5 +9,6 @@ HIGHEST_PIANO_NOTE = 108
 
 
 def is_black_key(note: int) -> bool:
-    return note % 12 in BLACK_KEY_CLASSES
+    """Return true when the MIDI note belongs to a black piano key."""
 
+    return note % 12 in BLACK_KEY_CLASSES

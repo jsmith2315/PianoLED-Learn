@@ -1,2 +1,1 @@
-"""Configuration package."""
-
+"""Configuration models and storage helpers."""
