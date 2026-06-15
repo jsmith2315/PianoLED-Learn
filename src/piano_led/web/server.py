@@ -351,6 +351,120 @@ KEYMAP_HTML = """<!doctype html>
 """
 
 
+SONGS_HTML = """<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Piano LED Learn - Songs</title>
+    <style>
+""" + BASE_STYLE + """
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/settings">Settings</a>
+      <a href="/keymap">Keymap</a>
+      <a href="/songs">Songs</a>
+      <a href="/practice">Practice</a>
+    </nav>
+    <div class="card">
+      <h1>Song Selection</h1>
+      <p>Choose a MIDI file here once, and the current learning page will use the same selection.</p>
+      <section class="panel">
+        <label>Available MIDI Files</label>
+        <select id="song-select"></select>
+        <button onclick="saveSongSelection()">Use This Song</button>
+      </section>
+      <section class="panel">
+        <h2>Current Selection</h2>
+        <pre id="song-selection-output">Loading...</pre>
+      </section>
+    </div>
+    <script>
+      async function fetchJson(url, options) {
+        const response = await fetch(url, {...(options || {}), cache: 'no-store'});
+        return await response.json();
+      }
+
+      async function refreshSongs() {
+        const songsPayload = await fetchJson('/api/songs');
+        const selectionPayload = await fetchJson('/api/song-selection');
+        const select = document.getElementById('song-select');
+        select.innerHTML = '';
+        for (const song of songsPayload.songs) {
+          const option = document.createElement('option');
+          option.value = song.relative_path;
+          option.textContent = song.display_title;
+          if (selectionPayload.selected_song_path === song.relative_path) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        }
+        document.getElementById('song-selection-output').textContent = JSON.stringify(selectionPayload, null, 2);
+      }
+
+      async function saveSongSelection() {
+        await fetchJson('/api/song-selection', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({relative_path: document.getElementById('song-select').value})
+        });
+        await refreshSongs();
+      }
+
+      refreshSongs();
+      setInterval(refreshSongs, 1000);
+    </script>
+  </body>
+</html>
+"""
+
+
+PRACTICE_HTML = """<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Piano LED Learn - Practice</title>
+    <style>
+""" + BASE_STYLE + """
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/settings">Settings</a>
+      <a href="/keymap">Keymap</a>
+      <a href="/songs">Songs</a>
+      <a href="/practice">Practice</a>
+    </nav>
+    <div class="card">
+      <h1>Learning Mode</h1>
+      <p>This page will host practice playback next. For now, it reads the shared song selection from the runtime.</p>
+      <section class="panel">
+        <h2>Selected Song</h2>
+        <pre id="selected-song-output">Loading...</pre>
+      </section>
+    </div>
+    <script>
+      async function fetchJson(url, options) {
+        const response = await fetch(url, {...(options || {}), cache: 'no-store'});
+        return await response.json();
+      }
+
+      async function refreshPractice() {
+        const selectionPayload = await fetchJson('/api/song-selection');
+        document.getElementById('selected-song-output').textContent = JSON.stringify(selectionPayload, null, 2);
+      }
+
+      refreshPractice();
+      setInterval(refreshPractice, 1000);
+    </script>
+  </body>
+</html>
+"""
+
+
 def _json_response(start_response, payload: dict, status: str = "200 OK"):
     """Build a JSON WSGI response."""
     body = json.dumps(payload).encode("utf-8")
@@ -403,11 +517,30 @@ def create_web_app(runtime: PianoLedRuntime):
         if method == "GET" and path == "/settings":
             return _html_response(start_response, SETTINGS_HTML)
 
-        if method == "GET" and path in {"/", "/songs", "/practice"}:
+        if method == "GET" and path == "/songs":
+            return _html_response(start_response, SONGS_HTML)
+
+        if method == "GET" and path == "/practice":
+            return _html_response(start_response, PRACTICE_HTML)
+
+        if method == "GET" and path == "/":
             return _html_response(start_response, INDEX_HTML)
 
         if method == "GET" and path == "/api/state":
             return _json_response(start_response, runtime.get_state())
+
+        if method == "GET" and path == "/api/songs":
+            return _json_response(start_response, {"songs": runtime.list_songs()})
+
+        if method == "GET" and path == "/api/song-selection":
+            return _json_response(start_response, runtime.get_song_selection_state())
+
+        if method == "POST" and path == "/api/song-selection":
+            try:
+                payload = runtime.select_song(str(body["relative_path"]))
+            except ValueError as error:
+                return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
+            return _json_response(start_response, payload)
 
         if method == "GET" and path == "/api/settings":
             return _json_response(start_response, runtime.settings.to_dict())

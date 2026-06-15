@@ -205,3 +205,34 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(status, "200 OK")
         self.assertEqual(settings["led"]["strip_direction"], "right_to_left")
         self.assertEqual(settings["led"]["default_first_led"], 175)
+
+    def test_songs_and_practice_share_the_selected_song(self) -> None:
+        application = self._build_test_application()
+        songs_dir = application.settings_store.path.parent.parent / "songs" / "midi"
+        songs_dir.mkdir(parents=True, exist_ok=True)
+        songs_dir.joinpath("Moonlight.mid").write_bytes(b"mid")
+        application = build_application(project_root=application.settings_store.path.parent.parent.parent)
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/songs")
+        html = payload.decode("utf-8")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertIn("Song Selection", html)
+
+        status, _, payload = _invoke(app, "GET", "/api/songs")
+        songs_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual([song["relative_path"] for song in songs_payload["songs"]], ["Moonlight.mid"])
+
+        status, _, payload = _invoke(app, "POST", "/api/song-selection", b'{"relative_path": "Moonlight.mid"}')
+        selection_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(selection_payload["selected_song_path"], "Moonlight.mid")
+
+        status, _, payload = _invoke(app, "GET", "/api/song-selection")
+        current_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(current_payload["selected_song"]["display_title"], "Moonlight")
+
+        status, _, payload = _invoke(app, "GET", "/practice")
+        practice_html = payload.decode("utf-8")
+        self.assertIn("Learning Mode", practice_html)
+        self.assertIn("selected-song-output", practice_html)
