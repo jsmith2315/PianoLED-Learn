@@ -116,6 +116,22 @@ class PianoLedRuntime:
         self.refresh_state()
         return self.calibration_session.to_dict()
 
+    def get_keymap_state(self) -> dict:
+        """Return the current keymap plus a few useful summary values."""
+
+        return {
+            "note_to_led": self.keymap.to_dict()["note_to_led"],
+            "note_count": len(self.keymap.note_to_led),
+            "first_note": min(self.keymap.note_to_led) if self.keymap.note_to_led else None,
+            "last_note": max(self.keymap.note_to_led) if self.keymap.note_to_led else None,
+        }
+
+    def get_calibration_state(self) -> dict:
+        """Return whether calibration is active and the current session payload."""
+
+        session = self.calibration_session.to_dict() if self.calibration_session else None
+        return {"active": self.calibration_session is not None, "session": session}
+
     def calibration_select_key(self, note: int) -> dict:
         if self.calibration_session is None:
             self.start_calibration()

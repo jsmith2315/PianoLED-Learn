@@ -10,21 +10,21 @@ It uses:
 - the configured LED backend from `data/settings/settings.json`
 - the `run-live` CLI command
 
-## Service file
+## Service installer
 
-The repo includes a ready-to-copy service file at:
+The repo includes a small installer script at:
 
-- `deploy/systemd/piano-led-live.service`
+- `deploy/systemd/install-pi-service.sh`
+
+It writes a user-specific service file with the correct `User=` and
+`WorkingDirectory=` values for your Pi account.
 
 ## Install on the Pi
 
 From the project root on the Pi:
 
 ```bash
-sudo cp deploy/systemd/piano-led-live.service /etc/systemd/system/piano-led-live.service
-sudo systemctl daemon-reload
-sudo systemctl enable piano-led-live.service
-sudo systemctl start piano-led-live.service
+bash deploy/systemd/install-pi-service.sh <your-user> /home/<your-user>/PianoLED-Learn
 ```
 
 ## Check status and logs
@@ -44,5 +44,4 @@ sudo systemctl disable piano-led-live.service
 ## Development note
 
 Commands like `python3 -m piano_led status` and `python3 -m piano_led midi-list-ports`
-now avoid real LED initialization, so they are safer to run while diagnosing Pi setup.
-
+avoid real LED initialization, so they are safer to run while diagnosing Pi setup.

@@ -88,15 +88,12 @@ MIDI input, and keeps the piano-to-LED runtime active until you stop it.
 
 ## Systemd service for this repo
 
-This repo now includes a service file at:
+This repo now includes a service installer at:
 
-- `deploy/systemd/piano-led-live.service`
+- `deploy/systemd/install-pi-service.sh`
 
 Install and start it with:
 
 ```bash
-sudo cp deploy/systemd/piano-led-live.service /etc/systemd/system/piano-led-live.service
-sudo systemctl daemon-reload
-sudo systemctl enable piano-led-live.service
-sudo systemctl start piano-led-live.service
+bash deploy/systemd/install-pi-service.sh <your-user> /home/<your-user>/PianoLED-Learn
 ```
