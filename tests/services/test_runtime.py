@@ -141,3 +141,59 @@ class PianoLedRuntimeTest(unittest.TestCase):
             state["last_note_event"],
             {"event_type": "note_on", "note": 60, "velocity": 70, "source": "midi"},
         )
+
+    def test_runtime_can_preview_full_keymap_with_black_and_white_colors(self) -> None:
+        settings = AppSettings(
+            led=LedSettings(total_leds=8, note_color="#112233", black_key_color="#445566", use_black_key_color=True)
+        )
+        driver = FakeLedDriver(total_leds=8)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 1, 61: 2}), led_driver=driver)
+
+        preview_state = runtime.preview_full_keymap()
+
+        self.assertTrue(preview_state["full_map_preview_active"])
+        self.assertEqual(driver.pixels[1], (17, 34, 51))
+        self.assertEqual(driver.pixels[2], (68, 85, 102))
+
+    def test_runtime_can_shift_whole_keymap_by_piano_direction(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=16, strip_direction="right_to_left"))
+        driver = FakeLedDriver(total_leds=16)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 5, 61: 7}), led_driver=driver)
+
+        keymap_state = runtime.shift_full_keymap_piano("left")
+
+        self.assertEqual(keymap_state["note_to_led"]["60"], 6)
+        self.assertEqual(keymap_state["note_to_led"]["61"], 8)
+
+    def test_runtime_uses_neighboring_piano_keys_to_nudge_selected_mapping(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=16, strip_direction="right_to_left"))
+        driver = FakeLedDriver(total_leds=16)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={59: 4, 60: 5, 61: 6}), led_driver=driver)
+
+        runtime.start_calibration()
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
+        runtime.handle_note_event(NoteEvent.note_on(note=59, velocity=90, source="midi"))
+        self.assertEqual(runtime.keymap.note_to_led[60], 6)
+
+        runtime.handle_note_event(NoteEvent.note_on(note=61, velocity=90, source="midi"))
+        self.assertEqual(runtime.keymap.note_to_led[60], 5)
+
+    def test_runtime_restores_full_preview_after_confirming_calibration_key(self) -> None:
+        settings = AppSettings(
+            led=LedSettings(total_leds=8, note_color="#112233", black_key_color="#445566", use_black_key_color=True)
+        )
+        driver = FakeLedDriver(total_leds=8)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 1, 61: 2}), led_driver=driver)
+
+        runtime.set_calibration_full_preview(True)
+        runtime.start_calibration()
+        self.assertEqual(driver.pixels[1], (17, 34, 51))
+        self.assertEqual(driver.pixels[2], (68, 85, 102))
+
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
+        self.assertEqual(driver.pixels[1], (17, 34, 51))
+        self.assertEqual(driver.pixels[2], (0, 0, 0))
+
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
+        self.assertEqual(driver.pixels[1], (17, 34, 51))
+        self.assertEqual(driver.pixels[2], (68, 85, 102))

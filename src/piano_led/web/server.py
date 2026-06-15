@@ -80,11 +80,15 @@ KEYMAP_HTML = """<!doctype html>
             <option value="right_to_left">Right to Left</option>
           </select>
           <button onclick="generateKeymap()">Generate Keymap</button>
+          <button onclick="previewFullMap()">Preview Full Map</button>
+          <button onclick="shiftWholeMap('left')">Shift Whole Map Left on Piano</button>
+          <button onclick="shiftWholeMap('right')">Shift Whole Map Right on Piano</button>
         </section>
         <section class="panel">
           <h2>Calibration Controls</h2>
           <label>Selected Note</label>
           <input id="selected-note" type="number" value="60">
+          <label><input id="full-preview-toggle" type="checkbox"> Full Keyboard Preview During Calibration</label>
           <button onclick="startCalibration()">Start Calibration</button>
           <button onclick="stopCalibration()">Stop Calibration</button>
           <button onclick="armNextKey()">Use Next Piano Key</button>
@@ -102,8 +106,10 @@ KEYMAP_HTML = """<!doctype html>
       <section class="panel">
         <h2>What to Expect</h2>
         <p>Generate Base Keymap saves a first-pass map using the current LED count, first LED, and direction.</p>
+        <p>Preview Full Map lights the current keymap using note color for white keys and black-key color for black keys, so you can shift the whole map closer before fine tuning.</p>
         <p>Start Calibration now immediately listens for piano keys. Use Next Piano Key simply re-arms that listener if you want an explicit reset.</p>
-        <p>When no note is selected, press a piano key to choose it and light its current LED. After shifting, press the same piano key again to save that mapping.</p>
+        <p>When no note is selected, press a piano key to choose it and light its current LED. Once a note is selected, pressing any lower piano key nudges that LED one step left, and pressing any higher piano key nudges it one step right.</p>
+        <p>Press the selected piano key again to save that mapping. If full-keyboard preview is enabled, the whole keyboard comes back after each confirm.</p>
         <p>Shift Left on Piano and Shift Right on Piano follow the physical piano direction even when the strip starts on the right side.</p>
       </section>
       <section class="panel">
@@ -133,6 +139,7 @@ KEYMAP_HTML = """<!doctype html>
         document.getElementById('total-leds').value = settings.led.total_leds;
         document.getElementById('first-led').value = settings.led.default_first_led;
         document.getElementById('direction').value = settings.led.strip_direction;
+        document.getElementById('full-preview-toggle').checked = calibration.show_full_keyboard_preview;
         document.getElementById('live-output').textContent = JSON.stringify({
           active_notes: liveState.active_notes,
           last_note_event: liveState.last_note_event,
@@ -171,7 +178,34 @@ KEYMAP_HTML = """<!doctype html>
         }));
       }
 
+      async function previewFullMap() {
+        await runAction(() => fetchJson('/api/keymap/preview', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: '{}'
+        }));
+      }
+
+      async function shiftWholeMap(direction) {
+        await runAction(() => fetchJson('/api/keymap/shift', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({direction})
+        }));
+      }
+
+      async function setCalibrationDisplayMode() {
+        return await fetchJson('/api/calibration/display-mode', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            show_full_keyboard_preview: document.getElementById('full-preview-toggle').checked
+          })
+        });
+      }
+
       async function startCalibration() {
+        await setCalibrationDisplayMode();
         await runAction(() => fetchJson('/api/calibration/start', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -295,6 +329,12 @@ def create_web_app(runtime: PianoLedRuntime):
             )
             return _json_response(start_response, payload)
 
+        if method == "POST" and path == "/api/keymap/preview":
+            return _json_response(start_response, runtime.preview_full_keymap())
+
+        if method == "POST" and path == "/api/keymap/shift":
+            return _json_response(start_response, runtime.shift_full_keymap_piano(str(body["direction"])))
+
         if method == "GET" and path == "/api/keymap":
             return _json_response(start_response, runtime.get_keymap_state())
 
@@ -307,6 +347,12 @@ def create_web_app(runtime: PianoLedRuntime):
 
         if method == "POST" and path == "/api/calibration/arm":
             return _json_response(start_response, runtime.arm_calibration_note_capture())
+
+        if method == "POST" and path == "/api/calibration/display-mode":
+            return _json_response(
+                start_response,
+                runtime.set_calibration_full_preview(bool(body.get("show_full_keyboard_preview"))),
+            )
 
         if method == "POST" and path == "/api/calibration/stop":
             return _json_response(start_response, runtime.stop_calibration())

@@ -39,6 +39,8 @@ class PianoLedRuntime:
         self.active_notes: set[int] = set()
         self.last_note_event: dict | None = None
         self.calibration_session: CalibrationSession | None = None
+        self.show_full_keyboard_preview_during_calibration = False
+        self.full_map_preview_active = False
         self.awaiting_calibration_note = False
         self.chase_index = 0
         self.midi_input: MidiInputPort | None = None
@@ -91,6 +93,59 @@ class PianoLedRuntime:
         self.led_driver.show()
         self.refresh_state()
 
+    def _in_led_range(self, led_index: int) -> bool:
+        return 0 <= led_index < self.settings.led.total_leds
+
+    def _render_full_keymap_to_strip(self) -> None:
+        self.led_driver.clear()
+        for note, led_index in self.keymap.note_to_led.items():
+            if self._in_led_range(led_index):
+                self.led_driver.set_pixel(led_index, self.note_color_for(note))
+        self.led_driver.show()
+
+    def preview_full_keymap(self) -> dict:
+        """Render the current whole-keyboard keymap on the LED strip."""
+
+        self.full_map_preview_active = True
+        self._render_full_keymap_to_strip()
+        self.refresh_state()
+        return self.get_keymap_state()
+
+    def clear_full_keymap_preview(self) -> dict:
+        """Turn off any whole-keyboard preview currently shown on the strip."""
+
+        self.full_map_preview_active = False
+        self.clear_leds()
+        self.refresh_state()
+        return self.get_keymap_state()
+
+    def shift_full_keymap_piano(self, direction: str) -> dict:
+        """Shift every mapped LED by one step in physical piano direction."""
+
+        if direction not in {"left", "right"}:
+            raise ValueError(f"Unsupported piano direction: {direction}")
+
+        if self.settings.led.strip_direction == "right_to_left":
+            delta = 1 if direction == "left" else -1
+        else:
+            delta = -1 if direction == "left" else 1
+
+        for note in list(self.keymap.note_to_led):
+            self.keymap.note_to_led[note] += delta
+
+        if self.keymap_store is not None:
+            self.keymap_store.save(self.keymap)
+
+        if self.full_map_preview_active or (
+            self.calibration_session is not None
+            and self.show_full_keyboard_preview_during_calibration
+            and self.calibration_session.selected_note is None
+        ):
+            self._render_full_keymap_to_strip()
+
+        self.refresh_state()
+        return self.get_keymap_state()
+
     def note_color_for(self, note: int) -> tuple[int, int, int]:
         if self.settings.led.use_black_key_color and is_black_key(note):
             return hex_to_rgb(self.settings.led.black_key_color)
@@ -134,7 +189,10 @@ class PianoLedRuntime:
     def start_calibration(self) -> dict:
         note_order = list(range(LOWEST_PIANO_NOTE, HIGHEST_PIANO_NOTE + 1))
         self.calibration_session = CalibrationSession(keymap=self.keymap, note_order=note_order)
+        self.full_map_preview_active = False
         self.awaiting_calibration_note = True
+        if self.show_full_keyboard_preview_during_calibration:
+            self._render_full_keymap_to_strip()
         self.refresh_state()
         return self.calibration_session.to_dict()
 
@@ -163,9 +221,25 @@ class PianoLedRuntime:
             self.start_calibration()
 
         assert self.calibration_session is not None
+        if self.calibration_session.selected_note is None:
+            return self.calibration_select_key(note)
         if self.calibration_session.selected_note == note:
             return self.calibration_confirm(note)
-        return self.calibration_select_key(note)
+        if note < self.calibration_session.selected_note:
+            return self.calibration_shift_piano("left")
+        return self.calibration_shift_piano("right")
+
+    def set_calibration_full_preview(self, enabled: bool) -> dict:
+        """Toggle whether calibration shows the whole keyboard between edits."""
+
+        self.show_full_keyboard_preview_during_calibration = enabled
+        if self.calibration_session is not None and self.calibration_session.selected_note is None:
+            if enabled:
+                self._render_full_keymap_to_strip()
+            else:
+                self.clear_leds()
+        self.refresh_state()
+        return self.get_calibration_state()
 
     def get_keymap_state(self) -> dict:
         """Return the current keymap plus a few useful summary values."""
@@ -175,6 +249,7 @@ class PianoLedRuntime:
             "note_count": len(self.keymap.note_to_led),
             "first_note": min(self.keymap.note_to_led) if self.keymap.note_to_led else None,
             "last_note": max(self.keymap.note_to_led) if self.keymap.note_to_led else None,
+            "full_map_preview_active": self.full_map_preview_active,
         }
 
     def get_calibration_state(self) -> dict:
@@ -184,6 +259,7 @@ class PianoLedRuntime:
         return {
             "active": self.calibration_session is not None,
             "awaiting_note": self.awaiting_calibration_note,
+            "show_full_keyboard_preview": self.show_full_keyboard_preview_during_calibration,
             "session": session,
         }
 
@@ -191,11 +267,13 @@ class PianoLedRuntime:
         if self.calibration_session is None:
             self.start_calibration()
         assert self.calibration_session is not None
+        self.full_map_preview_active = False
         self.awaiting_calibration_note = True
         led_index = self.calibration_session.select_key(note)
         self.clear_leds()
-        self.led_driver.set_pixel(led_index, self.note_color_for(note))
-        self.led_driver.show()
+        if self._in_led_range(led_index):
+            self.led_driver.set_pixel(led_index, self.note_color_for(note))
+            self.led_driver.show()
         self.refresh_state()
         return self.calibration_session.to_dict()
 
@@ -219,8 +297,9 @@ class PianoLedRuntime:
         selected = self.calibration_session.selected_note
         self.clear_leds()
         assert selected is not None
-        self.led_driver.set_pixel(led_index, self.note_color_for(selected))
-        self.led_driver.show()
+        if self._in_led_range(led_index):
+            self.led_driver.set_pixel(led_index, self.note_color_for(selected))
+            self.led_driver.show()
         self.refresh_state()
         return self.calibration_session.to_dict()
 
@@ -229,7 +308,10 @@ class PianoLedRuntime:
             raise RuntimeError("Calibration has not started")
         self.awaiting_calibration_note = True
         self.calibration_session.confirm_key(note)
-        self.clear_leds()
+        if self.show_full_keyboard_preview_during_calibration:
+            self._render_full_keymap_to_strip()
+        else:
+            self.clear_leds()
         if self.keymap_store is not None:
             self.keymap_store.save(self.keymap)
         self.refresh_state()
