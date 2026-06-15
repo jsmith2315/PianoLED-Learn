@@ -373,12 +373,13 @@ SONGS_HTML = """<!doctype html>
       <p>Choose a MIDI file here once, and the current learning page will use the same selection.</p>
       <section class="panel">
         <label>Available MIDI Files</label>
-        <select id="song-select"></select>
-        <button onclick="saveSongSelection()">Use This Song</button>
+        <p id="songs-empty-state">No MIDI files found in data/songs/midi yet.</p>
+        <select id="song-select" hidden disabled></select>
+        <button id="song-select-button" onclick="saveSongSelection()" hidden disabled>Use This Song</button>
       </section>
       <section class="panel">
         <h2>Current Selection</h2>
-        <pre id="song-selection-output">Loading...</pre>
+        <pre id="song-selection-output">No song selected yet.</pre>
       </section>
     </div>
     <script>
@@ -390,8 +391,25 @@ SONGS_HTML = """<!doctype html>
       async function refreshSongs() {
         const songsPayload = await fetchJson('/api/songs');
         const selectionPayload = await fetchJson('/api/song-selection');
+        const emptyState = document.getElementById('songs-empty-state');
         const select = document.getElementById('song-select');
+        const button = document.getElementById('song-select-button');
+        const output = document.getElementById('song-selection-output');
         select.innerHTML = '';
+        if (!songsPayload.songs.length) {
+          emptyState.hidden = false;
+          select.hidden = true;
+          select.disabled = true;
+          button.hidden = true;
+          button.disabled = true;
+          output.textContent = 'No MIDI files found in data/songs/midi yet.';
+          return;
+        }
+        emptyState.hidden = true;
+        select.hidden = false;
+        select.disabled = false;
+        button.hidden = false;
+        button.disabled = false;
         for (const song of songsPayload.songs) {
           const option = document.createElement('option');
           option.value = song.relative_path;
@@ -401,7 +419,11 @@ SONGS_HTML = """<!doctype html>
           }
           select.appendChild(option);
         }
-        document.getElementById('song-selection-output').textContent = JSON.stringify(selectionPayload, null, 2);
+        if (!selectionPayload.selected_song) {
+          output.textContent = 'No song selected yet.';
+          return;
+        }
+        output.textContent = JSON.stringify(selectionPayload, null, 2);
       }
 
       async function saveSongSelection() {
@@ -443,7 +465,8 @@ PRACTICE_HTML = """<!doctype html>
       <p>This page will host practice playback next. For now, it reads the shared song selection from the runtime.</p>
       <section class="panel">
         <h2>Selected Song</h2>
-        <pre id="selected-song-output">Loading...</pre>
+        <p id="practice-empty-state">No song selected yet.</p>
+        <pre id="selected-song-output" hidden></pre>
       </section>
     </div>
     <script>
@@ -454,7 +477,25 @@ PRACTICE_HTML = """<!doctype html>
 
       async function refreshPractice() {
         const selectionPayload = await fetchJson('/api/song-selection');
-        document.getElementById('selected-song-output').textContent = JSON.stringify(selectionPayload, null, 2);
+        const emptyState = document.getElementById('practice-empty-state');
+        const output = document.getElementById('selected-song-output');
+        if (!selectionPayload.songs.length) {
+          emptyState.hidden = false;
+          emptyState.textContent = 'No MIDI files found in data/songs/midi yet.';
+          output.hidden = true;
+          output.textContent = '';
+          return;
+        }
+        if (!selectionPayload.selected_song) {
+          emptyState.hidden = false;
+          emptyState.textContent = 'No song selected yet. Choose a MIDI file on the Songs page to begin practicing.';
+          output.hidden = true;
+          output.textContent = '';
+          return;
+        }
+        emptyState.hidden = true;
+        output.hidden = false;
+        output.textContent = JSON.stringify(selectionPayload, null, 2);
       }
 
       refreshPractice();

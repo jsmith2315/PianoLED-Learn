@@ -236,3 +236,20 @@ class WebServerTest(unittest.TestCase):
         practice_html = payload.decode("utf-8")
         self.assertIn("Learning Mode", practice_html)
         self.assertIn("selected-song-output", practice_html)
+        self.assertIn("fetchJson('/api/song-selection')", practice_html)
+
+    def test_song_pages_include_friendly_empty_state_copy(self) -> None:
+        application = self._build_test_application()
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/songs")
+        songs_html = payload.decode("utf-8")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertIn("No MIDI files found in data/songs/midi yet.", songs_html)
+
+        status, headers, payload = _invoke(app, "GET", "/practice")
+        practice_html = payload.decode("utf-8")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertIn("No song selected yet.", practice_html)
