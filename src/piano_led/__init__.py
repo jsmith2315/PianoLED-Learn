@@ -1,0 +1,2 @@
+"""Piano LED visualizer package."""
+

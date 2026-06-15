@@ -1,0 +1,24 @@
+{
+  "led": {
+    "total_leds": 176,
+    "leds_per_meter": 144,
+    "note_color": "#00b894",
+    "black_key_color": "#0984e3",
+    "use_black_key_color": true,
+    "strip_direction": "left_to_right",
+    "default_first_led": 0,
+    "backend": "fake",
+    "gpio_pin": 18,
+    "brightness": 128,
+    "dma_channel": 10,
+    "pwm_frequency_hz": 800000,
+    "invert_signal": false,
+    "channel": 0
+  },
+  "midi": {
+    "backend": "fake",
+    "input_port_name": "",
+    "output_port_name": ""
+  },
+  "selected_keymap": "default_88.json"
+}

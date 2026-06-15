@@ -1,0 +1,2 @@
+"""MIDI interfaces and adapters."""
+

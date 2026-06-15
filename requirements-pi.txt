@@ -1,0 +1,6 @@
+mido==1.3.3
+
+# Install the Raspberry Pi LED driver from a pinned wheel once the wheel is
+# copied into vendor/wheelhouse for the Pi target. Keeping it out of the generic
+# dependency set avoids breaking laptop development.
+

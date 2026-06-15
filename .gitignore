@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.log
+
+# Local editor and OS files
+.DS_Store
+Thumbs.db
+
+# Local brainstorming/runtime scratch
+.superpowers/
+
