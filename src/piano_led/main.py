@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     led_chase = subparsers.add_parser("led-chase", help="Run a short LED chase animation")
     led_chase.add_argument("--steps", type=int, default=10)
+    led_chase.add_argument("--delay-ms", type=float, default=75.0, help="Delay between chase frames in milliseconds")
 
     subparsers.add_parser("led-clear", help="Clear the LED strip")
     midi_monitor = subparsers.add_parser("midi-monitor", help="Subscribe to the configured live MIDI input")
@@ -49,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "led-chase":
         for _ in range(args.steps):
             application.runtime.handle_chase_step()
+            time.sleep(max(0.0, args.delay_ms) / 1000.0)
         print(f"Ran {args.steps} chase steps.")
         return 0
 
