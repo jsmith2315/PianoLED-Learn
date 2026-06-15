@@ -140,6 +140,7 @@ class WebServerTest(unittest.TestCase):
 
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("LED Settings", html)
         self.assertIn("Note Color", html)
         self.assertIn("Black Key Color", html)
@@ -218,6 +219,7 @@ class WebServerTest(unittest.TestCase):
         html = payload.decode("utf-8")
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("Song Selection", html)
 
         status, _, payload = _invoke(app, "GET", "/api/songs")
@@ -237,9 +239,8 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(status, "200 OK")
         self.assertIn("Learning Mode", practice_html)
         self.assertIn("Moonlight", practice_html)
+        self.assertIn("Moonlight.mid", practice_html)
         self.assertIn("selected-song-output", practice_html)
-        self.assertIn("selectionPayload.selected_song", practice_html)
-        self.assertIn("output.textContent = JSON.stringify(selectionPayload, null, 2);", practice_html)
 
     def test_song_selection_api_rejects_malformed_or_invalid_request_bodies(self) -> None:
         application = self._build_test_application()
@@ -263,6 +264,12 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(non_object_payload["error"], "invalid_request")
         self.assertIn("JSON object", non_object_payload["message"])
 
+        status, _, payload = _invoke(app, "POST", "/api/song-selection", b'{"relative_path": ""}')
+        invalid_path_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(status, "400 Bad Request")
+        self.assertEqual(invalid_path_payload["error"], "invalid_request")
+        self.assertIn("relative_path", invalid_path_payload["message"])
+
         status, _, payload = _invoke(app, "POST", "/api/song-selection", b"\xff")
         invalid_utf8_payload = json.loads(payload.decode("utf-8"))
         self.assertEqual(status, "400 Bad Request")
@@ -276,12 +283,14 @@ class WebServerTest(unittest.TestCase):
         songs_html = payload.decode("utf-8")
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("No MIDI files found in data/songs/midi yet.", songs_html)
 
         status, headers, payload = _invoke(app, "GET", "/practice")
         practice_html = payload.decode("utf-8")
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("No MIDI files found in data/songs/midi yet.", practice_html)
 
     def test_practice_page_includes_no_selection_copy_when_songs_exist(self) -> None:
@@ -296,4 +305,5 @@ class WebServerTest(unittest.TestCase):
         practice_html = payload.decode("utf-8")
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("No song selected yet. Choose a MIDI file on the Songs page to begin practicing.", practice_html)

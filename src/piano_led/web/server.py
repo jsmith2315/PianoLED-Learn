@@ -544,7 +544,14 @@ def _json_response(start_response, payload: dict, status: str = "200 OK"):
 def _html_response(start_response, body: str):
     """Build an HTML WSGI response."""
     payload = body.encode("utf-8")
-    start_response("200 OK", [("Content-Type", "text/html; charset=utf-8"), ("Content-Length", str(len(payload)))])
+    start_response(
+        "200 OK",
+        [
+            ("Content-Type", "text/html; charset=utf-8"),
+            ("Content-Length", str(len(payload))),
+            ("Cache-Control", "no-store"),
+        ],
+    )
     return [payload]
 
 
