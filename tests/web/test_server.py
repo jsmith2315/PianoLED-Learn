@@ -94,6 +94,8 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("right_to_left", html)
         self.assertIn("What to Expect", html)
         self.assertIn("Last Response", html)
+        self.assertIn("Clear Strip", html)
+        self.assertIn("Download Keymap", html)
         self.assertIn("Use Next Piano Key", html)
         self.assertIn("Stop Calibration", html)
         self.assertIn("Live Runtime", html)
@@ -127,6 +129,34 @@ class WebServerTest(unittest.TestCase):
         status, _, payload = _invoke(app, "POST", "/api/calibration/stop", b"{}")
         calibration_state = json.loads(payload.decode("utf-8"))
         self.assertFalse(calibration_state["active"])
+
+    def test_settings_page_exposes_led_color_and_brightness_controls(self) -> None:
+        application = self._build_test_application()
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/settings")
+        html = payload.decode("utf-8")
+
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertIn("LED Settings", html)
+        self.assertIn("Note Color", html)
+        self.assertIn("Black Key Color", html)
+        self.assertIn("Use Different Black Key Color", html)
+        self.assertIn("Brightness", html)
+        self.assertIn("Save Settings", html)
+
+    def test_keymap_download_endpoint_returns_json_attachment(self) -> None:
+        application = self._build_test_application()
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/api/keymap/download")
+        keymap_state = json.loads(payload.decode("utf-8"))
+
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "application/json")
+        self.assertIn("attachment;", headers["Content-Disposition"])
+        self.assertIn("note_to_led", keymap_state)
 
     def test_keymap_preview_and_whole_map_shift_actions_are_exposed(self) -> None:
         application = self._build_test_application()

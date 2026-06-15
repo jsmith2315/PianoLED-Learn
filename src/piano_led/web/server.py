@@ -14,6 +14,7 @@ BASE_STYLE = """
       .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
       .panel { background: #ffffffcc; padding: 1rem; border-radius: 14px; }
       button { background: #0f4c81; color: white; border: 0; border-radius: 999px; padding: 0.6rem 1rem; cursor: pointer; }
+      .button-link { display: inline-block; background: #0f4c81; color: white; text-decoration: none; border-radius: 999px; padding: 0.6rem 1rem; }
       input, select { width: 100%; margin: 0.3rem 0 0.8rem; padding: 0.45rem; border-radius: 8px; border: 1px solid #cdd6df; }
       code, pre { background: #edf2f7; padding: 0.1rem 0.3rem; border-radius: 4px; }
       pre { padding: 0.8rem; overflow: auto; }
@@ -42,6 +43,90 @@ INDEX_HTML = """<!doctype html>
       <p>This early foundation build exposes the runtime, settings, keymap generation, LED tools, and calibration APIs.</p>
       <p>Primary API endpoint: <code>/api/state</code></p>
     </div>
+  </body>
+</html>
+"""
+
+SETTINGS_HTML = """<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Piano LED Learn - Settings</title>
+    <style>
+""" + BASE_STYLE + """
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/settings">Settings</a>
+      <a href="/keymap">Keymap</a>
+      <a href="/songs">Songs</a>
+      <a href="/practice">Practice</a>
+    </nav>
+    <div class="card">
+      <h1>LED Settings</h1>
+      <p>Adjust core LED colors and strip brightness without editing JSON by hand.</p>
+      <div class="grid">
+        <section class="panel">
+          <label>Note Color</label>
+          <input id="note-color" type="color" value="#00b894">
+          <label>Black Key Color</label>
+          <input id="black-key-color" type="color" value="#0984e3">
+          <label><input id="use-black-key-color" type="checkbox"> Use Different Black Key Color</label>
+          <label>Brightness</label>
+          <input id="brightness" type="range" min="0" max="255" value="128">
+          <div>Brightness Value: <span id="brightness-value">128</span></div>
+          <button onclick="saveSettings()">Save Settings</button>
+        </section>
+        <section class="panel">
+          <h2>Last Response</h2>
+          <pre id="settings-response">No changes yet.</pre>
+        </section>
+      </div>
+    </div>
+    <script>
+      async function fetchJson(url, options) {
+        const response = await fetch(url, {...(options || {}), cache: 'no-store'});
+        return await response.json();
+      }
+
+      function showResponse(payload) {
+        document.getElementById('settings-response').textContent = JSON.stringify(payload, null, 2);
+      }
+
+      async function refreshSettings() {
+        const settings = await fetchJson('/api/settings');
+        document.getElementById('note-color').value = settings.led.note_color;
+        document.getElementById('black-key-color').value = settings.led.black_key_color;
+        document.getElementById('use-black-key-color').checked = settings.led.use_black_key_color;
+        document.getElementById('brightness').value = settings.led.brightness;
+        document.getElementById('brightness-value').textContent = settings.led.brightness;
+      }
+
+      async function saveSettings() {
+        const payload = await fetchJson('/api/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            led: {
+              note_color: document.getElementById('note-color').value,
+              black_key_color: document.getElementById('black-key-color').value,
+              use_black_key_color: document.getElementById('use-black-key-color').checked,
+              brightness: Number(document.getElementById('brightness').value)
+            }
+          })
+        });
+        showResponse(payload);
+        await refreshSettings();
+      }
+
+      document.getElementById('brightness').addEventListener('input', (event) => {
+        document.getElementById('brightness-value').textContent = event.target.value;
+      });
+
+      refreshSettings();
+    </script>
   </body>
 </html>
 """
@@ -83,6 +168,8 @@ KEYMAP_HTML = """<!doctype html>
           <button onclick="previewFullMap()">Preview Full Map</button>
           <button onclick="shiftWholeMap('left')">Shift Whole Map Left on Piano</button>
           <button onclick="shiftWholeMap('right')">Shift Whole Map Right on Piano</button>
+          <button onclick="clearStrip()">Clear Strip</button>
+          <a class="button-link" href="/api/keymap/download">Download Keymap</a>
         </section>
         <section class="panel">
           <h2>Calibration Controls</h2>
@@ -194,6 +281,14 @@ KEYMAP_HTML = """<!doctype html>
         }));
       }
 
+      async function clearStrip() {
+        await runAction(() => fetchJson('/api/led/clear', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: '{}'
+        }));
+      }
+
       async function setCalibrationDisplayMode() {
         return await fetchJson('/api/calibration/display-mode', {
           method: 'POST',
@@ -282,6 +377,22 @@ def _html_response(start_response, body: str):
     return [payload]
 
 
+def _download_response(start_response, payload: dict, filename: str):
+    """Build a JSON attachment response for browser downloads."""
+
+    body = json.dumps(payload, indent=2).encode("utf-8")
+    start_response(
+        "200 OK",
+        [
+            ("Content-Type", "application/json"),
+            ("Content-Length", str(len(body))),
+            ("Content-Disposition", f'attachment; filename="{filename}"'),
+            ("Cache-Control", "no-store"),
+        ],
+    )
+    return [body]
+
+
 def create_web_app(runtime: PianoLedRuntime):
     """Create the WSGI application bound to a specific runtime instance."""
     def application(environ, start_response):
@@ -294,7 +405,10 @@ def create_web_app(runtime: PianoLedRuntime):
         if method == "GET" and path == "/keymap":
             return _html_response(start_response, KEYMAP_HTML)
 
-        if method == "GET" and path in {"/", "/settings", "/songs", "/practice"}:
+        if method == "GET" and path == "/settings":
+            return _html_response(start_response, SETTINGS_HTML)
+
+        if method == "GET" and path in {"/", "/songs", "/practice"}:
             return _html_response(start_response, INDEX_HTML)
 
         if method == "GET" and path == "/api/state":
@@ -337,6 +451,9 @@ def create_web_app(runtime: PianoLedRuntime):
 
         if method == "GET" and path == "/api/keymap":
             return _json_response(start_response, runtime.get_keymap_state())
+
+        if method == "GET" and path == "/api/keymap/download":
+            return _download_response(start_response, runtime.keymap.to_dict(), "piano-led-keymap.json")
 
         if method == "POST" and path == "/api/calibration/start":
             session = runtime.start_calibration()
