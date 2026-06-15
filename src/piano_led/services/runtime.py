@@ -58,6 +58,16 @@ class PianoLedRuntime:
     def handle_note_event(self, event: NoteEvent) -> None:
         if event.event_type == "note_on" and self.calibration_session is not None and self.awaiting_calibration_note:
             self.capture_calibration_note(event.note)
+            return
+
+        if (
+            event.event_type == "note_off"
+            and self.calibration_session is not None
+            and self.calibration_session.selected_note == event.note
+        ):
+            self.active_notes.discard(event.note)
+            self.refresh_state()
+            return
 
         led_index = self.key_mapper.led_for_note(event.note)
         if led_index is None:

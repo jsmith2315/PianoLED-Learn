@@ -120,7 +120,7 @@ KEYMAP_HTML = """<!doctype html>
     </div>
     <script>
       async function fetchJson(url, options) {
-        const response = await fetch(url, options);
+        const response = await fetch(url, {...(options || {}), cache: 'no-store'});
         return await response.json();
       }
 
@@ -220,7 +220,14 @@ KEYMAP_HTML = """<!doctype html>
 def _json_response(start_response, payload: dict, status: str = "200 OK"):
     """Build a JSON WSGI response."""
     body = json.dumps(payload).encode("utf-8")
-    start_response(status, [("Content-Type", "application/json"), ("Content-Length", str(len(body)))])
+    start_response(
+        status,
+        [
+            ("Content-Type", "application/json"),
+            ("Content-Length", str(len(body))),
+            ("Cache-Control", "no-store"),
+        ],
+    )
     return [body]
 
 

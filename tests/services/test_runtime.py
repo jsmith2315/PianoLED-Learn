@@ -92,6 +92,9 @@ class PianoLedRuntimeTest(unittest.TestCase):
         self.assertTrue(selected_state["awaiting_note"])
         self.assertEqual(selected_state["session"]["selected_note"], 60)
 
+        runtime.handle_note_event(NoteEvent.note_off(note=60, source="midi"))
+        self.assertEqual(driver.pixels[1], runtime.note_color_for(60))
+
         runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
         confirmed_state = runtime.get_calibration_state()
 

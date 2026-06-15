@@ -34,6 +34,7 @@ class WebServerTest(unittest.TestCase):
         state = json.loads(payload.decode("utf-8"))
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "application/json")
+        self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertGreaterEqual(state["settings"]["led"]["total_leds"], 88)
 
         application.runtime.handle_chase_step()
@@ -58,6 +59,7 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("Live Runtime", html)
         self.assertIn("Shift Left on Piano", html)
         self.assertIn("Shift Right on Piano", html)
+        self.assertIn("cache: 'no-store'", html)
 
         status, headers, payload = _invoke(app, "GET", "/api/keymap")
         keymap_state = json.loads(payload.decode("utf-8"))
