@@ -13,15 +13,19 @@ class SongLibraryTest(unittest.TestCase):
     def test_list_songs_only_returns_mid_and_midi_files(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            root.joinpath("alpha.mid").write_bytes(b"mid")
             root.joinpath("beta.midi").write_bytes(b"midi")
+            root.joinpath("Alpha.mid").write_bytes(b"mid")
+            root.joinpath("charlie.MID").write_bytes(b"mid")
             root.joinpath("ignore.txt").write_text("nope", encoding="utf-8")
+            nested_dir = root.joinpath("nested")
+            nested_dir.mkdir()
+            nested_dir.joinpath("delta.mid").write_bytes(b"mid")
 
             songs = SongLibrary(root).list_songs()
 
             self.assertEqual(
                 [song["relative_path"] for song in songs],
-                ["alpha.mid", "beta.midi"],
+                ["Alpha.mid", "beta.midi", "charlie.MID"],
             )
 
     def test_list_songs_builds_stable_display_titles(self) -> None:
