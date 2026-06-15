@@ -56,6 +56,8 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("Last Response", html)
         self.assertIn("Use Next Piano Key", html)
         self.assertIn("Live Runtime", html)
+        self.assertIn("Shift Left on Piano", html)
+        self.assertIn("Shift Right on Piano", html)
 
         status, headers, payload = _invoke(app, "GET", "/api/keymap")
         keymap_state = json.loads(payload.decode("utf-8"))
@@ -74,6 +76,18 @@ class WebServerTest(unittest.TestCase):
         status, _, payload = _invoke(app, "POST", "/api/calibration/arm", b"{}")
         calibration_state = json.loads(payload.decode("utf-8"))
         self.assertTrue(calibration_state["awaiting_note"])
+
+    def test_calibration_shift_api_accepts_piano_direction(self) -> None:
+        application = build_application()
+        app = create_web_app(application.runtime)
+
+        _invoke(app, "POST", "/api/calibration/start", b"{}")
+        _invoke(app, "POST", "/api/calibration/select", b'{"note": 60}')
+        status, _, payload = _invoke(app, "POST", "/api/calibration/shift", b'{"direction": "left"}')
+        calibration_state = json.loads(payload.decode("utf-8"))
+
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(calibration_state["session"]["selected_note"], 60)
 
     def test_settings_api_can_flip_strip_direction(self) -> None:
         application = build_application()

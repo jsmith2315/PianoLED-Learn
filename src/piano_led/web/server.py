@@ -88,8 +88,8 @@ KEYMAP_HTML = """<!doctype html>
           <button onclick="startCalibration()">Start Calibration</button>
           <button onclick="armNextKey()">Use Next Piano Key</button>
           <button onclick="selectKey()">Select Key</button>
-          <button onclick="shiftLed(-1)">Shift Left</button>
-          <button onclick="shiftLed(1)">Shift Right</button>
+          <button onclick="shiftLed('left')">Shift Left on Piano</button>
+          <button onclick="shiftLed('right')">Shift Right on Piano</button>
           <button onclick="confirmKey()">Confirm Key</button>
         </section>
       </div>
@@ -101,9 +101,9 @@ KEYMAP_HTML = """<!doctype html>
       <section class="panel">
         <h2>What to Expect</h2>
         <p>Generate Base Keymap saves a first-pass map using the current LED count, first LED, and direction.</p>
-        <p>Start Calibration marks calibration active. Use Next Piano Key arms the page to capture the next real note you play.</p>
-        <p>If no note is selected yet, the next piano key chooses that note and lights its current LED. If the same note is already selected, pressing it again saves the mapping.</p>
-        <p>Shift Left and Shift Right move the selected note's LED index. Confirm Key saves that note and clears the current selection.</p>
+        <p>Start Calibration now immediately listens for piano keys. Use Next Piano Key simply re-arms that listener if you want an explicit reset.</p>
+        <p>When no note is selected, press a piano key to choose it and light its current LED. After shifting, press the same piano key again to save that mapping.</p>
+        <p>Shift Left on Piano and Shift Right on Piano follow the physical piano direction even when the strip starts on the right side.</p>
       </section>
       <section class="panel">
         <h2>Current Keymap Summary</h2>
@@ -193,11 +193,11 @@ KEYMAP_HTML = """<!doctype html>
         }));
       }
 
-      async function shiftLed(delta) {
+      async function shiftLed(direction) {
         await runAction(() => fetchJson('/api/calibration/shift', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({delta})
+          body: JSON.stringify({direction})
         }));
       }
 
@@ -296,7 +296,10 @@ def create_web_app(runtime: PianoLedRuntime):
             return _json_response(start_response, runtime.get_calibration_state() | {"session": session})
 
         if method == "POST" and path == "/api/calibration/shift":
-            session = runtime.calibration_shift(int(body["delta"]))
+            if "direction" in body:
+                session = runtime.calibration_shift_piano(str(body["direction"]))
+            else:
+                session = runtime.calibration_shift(int(body["delta"]))
             return _json_response(start_response, runtime.get_calibration_state() | {"session": session})
 
         if method == "POST" and path == "/api/calibration/confirm":

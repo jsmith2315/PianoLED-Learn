@@ -56,7 +56,7 @@ class PianoLedRuntime:
         )
 
     def handle_note_event(self, event: NoteEvent) -> None:
-        if event.event_type == "note_on" and self.awaiting_calibration_note:
+        if event.event_type == "note_on" and self.calibration_session is not None and self.awaiting_calibration_note:
             self.capture_calibration_note(event.note)
 
         led_index = self.key_mapper.led_for_note(event.note)
@@ -117,7 +117,7 @@ class PianoLedRuntime:
     def start_calibration(self) -> dict:
         note_order = list(range(LOWEST_PIANO_NOTE, HIGHEST_PIANO_NOTE + 1))
         self.calibration_session = CalibrationSession(keymap=self.keymap, note_order=note_order)
-        self.awaiting_calibration_note = False
+        self.awaiting_calibration_note = True
         self.refresh_state()
         return self.calibration_session.to_dict()
 
@@ -137,7 +137,6 @@ class PianoLedRuntime:
             self.start_calibration()
 
         assert self.calibration_session is not None
-        self.awaiting_calibration_note = False
         if self.calibration_session.selected_note == note:
             return self.calibration_confirm(note)
         return self.calibration_select_key(note)
@@ -166,7 +165,7 @@ class PianoLedRuntime:
         if self.calibration_session is None:
             self.start_calibration()
         assert self.calibration_session is not None
-        self.awaiting_calibration_note = False
+        self.awaiting_calibration_note = True
         led_index = self.calibration_session.select_key(note)
         self.clear_leds()
         self.led_driver.set_pixel(led_index, self.note_color_for(note))
@@ -174,10 +173,22 @@ class PianoLedRuntime:
         self.refresh_state()
         return self.calibration_session.to_dict()
 
+    def calibration_shift_piano(self, direction: str) -> dict:
+        """Shift the selected LED by physical piano direction instead of raw index."""
+
+        if direction not in {"left", "right"}:
+            raise ValueError(f"Unsupported piano direction: {direction}")
+
+        if self.settings.led.strip_direction == "right_to_left":
+            delta = 1 if direction == "left" else -1
+        else:
+            delta = -1 if direction == "left" else 1
+        return self.calibration_shift(delta)
+
     def calibration_shift(self, delta: int) -> dict:
         if self.calibration_session is None:
             raise RuntimeError("Calibration has not started")
-        self.awaiting_calibration_note = False
+        self.awaiting_calibration_note = True
         led_index = self.calibration_session.shift(delta)
         selected = self.calibration_session.selected_note
         self.clear_leds()
@@ -190,7 +201,7 @@ class PianoLedRuntime:
     def calibration_confirm(self, note: int) -> dict:
         if self.calibration_session is None:
             raise RuntimeError("Calibration has not started")
-        self.awaiting_calibration_note = False
+        self.awaiting_calibration_note = True
         self.calibration_session.confirm_key(note)
         self.clear_leds()
         if self.keymap_store is not None:

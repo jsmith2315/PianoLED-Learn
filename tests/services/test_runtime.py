@@ -69,7 +69,7 @@ class PianoLedRuntimeTest(unittest.TestCase):
         runtime.handle_note_event(NoteEvent.note_on(note=61, velocity=90, source="midi"))
         selected_state = runtime.get_calibration_state()
 
-        self.assertFalse(selected_state["awaiting_note"])
+        self.assertTrue(selected_state["awaiting_note"])
         self.assertEqual(selected_state["session"]["selected_note"], 61)
         self.assertEqual(selected_state["session"]["active_led"], 2)
 
@@ -79,3 +79,35 @@ class PianoLedRuntimeTest(unittest.TestCase):
 
         self.assertIsNone(confirmed_state["session"]["selected_note"])
         self.assertIn(61, confirmed_state["session"]["completed_notes"])
+
+    def test_runtime_calibration_listens_to_live_keys_immediately_after_start(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 1, 61: 2}), led_driver=driver)
+
+        runtime.start_calibration()
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
+
+        selected_state = runtime.get_calibration_state()
+        self.assertTrue(selected_state["awaiting_note"])
+        self.assertEqual(selected_state["session"]["selected_note"], 60)
+
+        runtime.handle_note_event(NoteEvent.note_on(note=60, velocity=90, source="midi"))
+        confirmed_state = runtime.get_calibration_state()
+
+        self.assertTrue(confirmed_state["awaiting_note"])
+        self.assertIsNone(confirmed_state["session"]["selected_note"])
+        self.assertIn(60, confirmed_state["session"]["completed_notes"])
+
+    def test_runtime_shift_left_and_right_follow_piano_direction(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=16, strip_direction="right_to_left"))
+        driver = FakeLedDriver(total_leds=16)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 5}), led_driver=driver)
+
+        runtime.start_calibration()
+        runtime.calibration_select_key(60)
+        runtime.calibration_shift_piano("left")
+        self.assertEqual(runtime.keymap.note_to_led[60], 6)
+
+        runtime.calibration_shift_piano("right")
+        self.assertEqual(runtime.keymap.note_to_led[60], 5)
