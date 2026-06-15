@@ -98,7 +98,7 @@ class SmokeCommandTests(unittest.TestCase):
                 0,
             )
 
-            settings = json.loads(settings_dir.joinpath("settings.json").read_text(encoding="utf-8"))
+            settings = json.loads(settings_dir.joinpath("settings.local.json").read_text(encoding="utf-8"))
             keymap = json.loads(keymaps_dir.joinpath("default_88.json").read_text(encoding="utf-8"))
             self.assertEqual(settings["led"]["strip_direction"], "right_to_left")
             self.assertEqual(settings["led"]["default_first_led"], 175)

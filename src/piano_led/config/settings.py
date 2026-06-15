@@ -7,6 +7,18 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
+def _merge_dicts(base: dict, override: dict) -> dict:
+    """Recursively merge ``override`` values into a copy of ``base``."""
+
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_dicts(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 @dataclass
 class LedSettings:
     """LED-strip parameters and backend selection."""
@@ -52,9 +64,15 @@ class AppSettings:
 
 
 class SettingsStore:
-    """Load and save ``AppSettings`` as JSON."""
-    def __init__(self, path: Path) -> None:
+    """Load repo defaults and optional local-machine overrides as JSON."""
+
+    def __init__(self, path: Path, local_path: Path | None = None) -> None:
         self.path = path
+        self.local_path = local_path
+
+    def _load_json(self, path: Path) -> dict:
+        with path.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
 
     def load(self) -> AppSettings:
         if not self.path.exists():
@@ -62,10 +80,13 @@ class SettingsStore:
             self.save(settings)
             return settings
 
-        with self.path.open("r", encoding="utf-8") as handle:
-            return AppSettings.from_dict(json.load(handle))
+        payload = self._load_json(self.path)
+        if self.local_path is not None and self.local_path.exists():
+            payload = _merge_dicts(payload, self._load_json(self.local_path))
+        return AppSettings.from_dict(payload)
 
     def save(self, settings: AppSettings) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as handle:
+        target = self.local_path or self.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("w", encoding="utf-8") as handle:
             json.dump(settings.to_dict(), handle, indent=2)

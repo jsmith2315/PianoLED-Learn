@@ -12,3 +12,5 @@ Thumbs.db
 # Local brainstorming/runtime scratch
 .superpowers/
 
+# Machine-specific Piano LED settings
+data/settings/settings.local.json

@@ -37,9 +37,10 @@ def build_application(project_root: Path | None = None, initialize_leds: bool = 
 
     root = project_root or Path.cwd()
     settings_path = root / "data" / "settings" / "settings.json"
+    local_settings_path = root / "data" / "settings" / "settings.local.json"
     keymap_path = root / "data" / "keymaps" / "default_88.json"
 
-    settings_store = SettingsStore(settings_path)
+    settings_store = SettingsStore(settings_path, local_path=local_settings_path)
     settings = settings_store.load()
     keymap_store = KeymapStore(keymap_path)
     keymap = keymap_store.load()
