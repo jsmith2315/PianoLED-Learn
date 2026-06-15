@@ -83,10 +83,11 @@ class PianoLedRuntime:
     def get_song_selection_state(self) -> dict:
         """Return the available songs plus the current selection."""
 
+        selected_song = self.get_selected_song()
         return {
             "songs": self.list_songs(),
             "selected_song_path": self.selected_song_path,
-            "selected_song": self.get_selected_song(),
+            "selected_song": selected_song,
         }
 
     def select_song(self, relative_path: str) -> dict:
@@ -360,6 +361,7 @@ class PianoLedRuntime:
 
     def refresh_state(self) -> None:
         calibration = self.calibration_session.to_dict() if self.calibration_session else None
+        selected_song = self.get_selected_song()
         self.state_store.update(
             settings=self.settings.to_dict(),
             active_notes=sorted(self.active_notes),
@@ -368,7 +370,7 @@ class PianoLedRuntime:
             keymap=self.keymap.to_dict(),
             songs=self.list_songs(),
             selected_song_path=self.selected_song_path,
-            selected_song=self.get_selected_song(),
+            selected_song=selected_song,
         )
 
     def get_state(self) -> dict:

@@ -232,3 +232,29 @@ class PianoLedRuntimeTest(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 runtime.select_song("missing.mid")
+
+    def test_runtime_clears_stale_song_selection_consistently_when_song_disappears(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        with TemporaryDirectory() as tmp:
+            midi_root = Path(tmp)
+            song_path = midi_root / "etude.mid"
+            song_path.write_bytes(b"mid")
+            runtime = PianoLedRuntime(
+                settings=settings,
+                keymap=Keymap(note_to_led={60: 1}),
+                led_driver=driver,
+                song_library=SongLibrary(midi_root),
+            )
+
+            runtime.select_song("etude.mid")
+            song_path.unlink()
+
+            selection = runtime.get_song_selection_state()
+            state = runtime.get_state()
+
+            self.assertIsNone(selection["selected_song_path"])
+            self.assertIsNone(selection["selected_song"])
+            self.assertIsNone(runtime.selected_song_path)
+            self.assertIsNone(state["selected_song_path"])
+            self.assertIsNone(state["selected_song"])
