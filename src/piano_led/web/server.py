@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 
 from piano_led.services.runtime import PianoLedRuntime
@@ -443,7 +444,27 @@ SONGS_HTML = """<!doctype html>
 """
 
 
-PRACTICE_HTML = """<!doctype html>
+def _practice_html(runtime: PianoLedRuntime) -> str:
+    """Build the practice page with the current selection visible on first load."""
+
+    selection_payload = runtime.get_song_selection_state()
+    if not selection_payload["songs"]:
+        empty_state = "No MIDI files found in data/songs/midi yet."
+        empty_hidden = ""
+        output_hidden = " hidden"
+        output_text = ""
+    elif selection_payload["selected_song"] is None:
+        empty_state = "No song selected yet. Choose a MIDI file on the Songs page to begin practicing."
+        empty_hidden = ""
+        output_hidden = " hidden"
+        output_text = ""
+    else:
+        empty_state = ""
+        empty_hidden = " hidden"
+        output_hidden = ""
+        output_text = html.escape(json.dumps(selection_payload, indent=2))
+
+    return """<!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
@@ -465,8 +486,8 @@ PRACTICE_HTML = """<!doctype html>
       <p>This page will host practice playback next. For now, it reads the shared song selection from the runtime.</p>
       <section class="panel">
         <h2>Selected Song</h2>
-        <p id="practice-empty-state">No song selected yet.</p>
-        <pre id="selected-song-output" hidden></pre>
+""" + '<p id="practice-empty-state"' + empty_hidden + ">" + html.escape(empty_state) + "</p>" + """
+""" + '<pre id="selected-song-output"' + output_hidden + ">" + output_text + "</pre>" + """
       </section>
     </div>
     <script>
@@ -550,7 +571,14 @@ def create_web_app(runtime: PianoLedRuntime):
         path = environ.get("PATH_INFO", "/")
         length = int(environ.get("CONTENT_LENGTH", "0") or "0")
         raw_body = environ["wsgi.input"].read(length) if length else b""
-        body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+        try:
+            body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+        except json.JSONDecodeError:
+            return _json_response(
+                start_response,
+                {"error": "invalid_json", "message": "Request body must be valid JSON."},
+                status="400 Bad Request",
+            )
 
         if method == "GET" and path == "/keymap":
             return _html_response(start_response, KEYMAP_HTML)
@@ -562,7 +590,7 @@ def create_web_app(runtime: PianoLedRuntime):
             return _html_response(start_response, SONGS_HTML)
 
         if method == "GET" and path == "/practice":
-            return _html_response(start_response, PRACTICE_HTML)
+            return _html_response(start_response, _practice_html(runtime))
 
         if method == "GET" and path == "/":
             return _html_response(start_response, INDEX_HTML)
@@ -577,8 +605,21 @@ def create_web_app(runtime: PianoLedRuntime):
             return _json_response(start_response, runtime.get_song_selection_state())
 
         if method == "POST" and path == "/api/song-selection":
+            if not isinstance(body, dict):
+                return _json_response(
+                    start_response,
+                    {"error": "invalid_request", "message": "Request body must be a JSON object."},
+                    status="400 Bad Request",
+                )
+            relative_path = body.get("relative_path")
+            if not isinstance(relative_path, str) or not relative_path:
+                return _json_response(
+                    start_response,
+                    {"error": "invalid_request", "message": "Request body must include relative_path."},
+                    status="400 Bad Request",
+                )
             try:
-                payload = runtime.select_song(str(body["relative_path"]))
+                payload = runtime.select_song(relative_path)
             except ValueError as error:
                 return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
             return _json_response(start_response, payload)

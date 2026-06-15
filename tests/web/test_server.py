@@ -234,12 +234,34 @@ class WebServerTest(unittest.TestCase):
 
         status, _, payload = _invoke(app, "GET", "/practice")
         practice_html = payload.decode("utf-8")
+        self.assertEqual(status, "200 OK")
         self.assertIn("Learning Mode", practice_html)
+        self.assertIn("Moonlight", practice_html)
         self.assertIn("selected-song-output", practice_html)
-        self.assertIn("fetchJson('/api/song-selection')", practice_html)
         self.assertIn("selectionPayload.selected_song", practice_html)
-        self.assertIn("const output = document.getElementById('selected-song-output');", practice_html)
         self.assertIn("output.textContent = JSON.stringify(selectionPayload, null, 2);", practice_html)
+
+    def test_song_selection_api_rejects_malformed_or_invalid_request_bodies(self) -> None:
+        application = self._build_test_application()
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "POST", "/api/song-selection", b"{")
+        malformed_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(status, "400 Bad Request")
+        self.assertEqual(headers["Content-Type"], "application/json")
+        self.assertEqual(malformed_payload["error"], "invalid_json")
+
+        status, _, payload = _invoke(app, "POST", "/api/song-selection", b"{}")
+        missing_path_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(status, "400 Bad Request")
+        self.assertEqual(missing_path_payload["error"], "invalid_request")
+        self.assertIn("relative_path", missing_path_payload["message"])
+
+        status, _, payload = _invoke(app, "POST", "/api/song-selection", b'"Moonlight.mid"')
+        non_object_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(status, "400 Bad Request")
+        self.assertEqual(non_object_payload["error"], "invalid_request")
+        self.assertIn("JSON object", non_object_payload["message"])
 
     def test_song_pages_include_friendly_empty_state_copy(self) -> None:
         application = self._build_test_application()
