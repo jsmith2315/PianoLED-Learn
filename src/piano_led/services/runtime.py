@@ -62,6 +62,24 @@ class PianoLedRuntime:
             f"midi_in={self.settings.midi.input_port_name or '<unset>'}"
         )
 
+    def _get_song_snapshot(self) -> dict:
+        """Return songs plus a reconciled current selection from one library read."""
+
+        songs = [] if self.song_library is None else self.song_library.list_songs()
+        selected_song = None
+        if self.selected_song_path is not None:
+            for song in songs:
+                if song["relative_path"] == self.selected_song_path:
+                    selected_song = song
+                    break
+            if selected_song is None:
+                self.selected_song_path = None
+        return {
+            "songs": songs,
+            "selected_song_path": self.selected_song_path,
+            "selected_song": selected_song,
+        }
+
     def list_songs(self) -> list[dict]:
         """Return the currently available MIDI songs."""
 
@@ -83,12 +101,7 @@ class PianoLedRuntime:
     def get_song_selection_state(self) -> dict:
         """Return the available songs plus the current selection."""
 
-        selected_song = self.get_selected_song()
-        return {
-            "songs": self.list_songs(),
-            "selected_song_path": self.selected_song_path,
-            "selected_song": selected_song,
-        }
+        return self._get_song_snapshot()
 
     def select_song(self, relative_path: str) -> dict:
         """Select a MIDI file from the current song library."""
@@ -361,16 +374,16 @@ class PianoLedRuntime:
 
     def refresh_state(self) -> None:
         calibration = self.calibration_session.to_dict() if self.calibration_session else None
-        selected_song = self.get_selected_song()
+        song_snapshot = self._get_song_snapshot()
         self.state_store.update(
             settings=self.settings.to_dict(),
             active_notes=sorted(self.active_notes),
             last_note_event=self.last_note_event,
             calibration=calibration,
             keymap=self.keymap.to_dict(),
-            songs=self.list_songs(),
-            selected_song_path=self.selected_song_path,
-            selected_song=selected_song,
+            songs=song_snapshot["songs"],
+            selected_song_path=song_snapshot["selected_song_path"],
+            selected_song=song_snapshot["selected_song"],
         )
 
     def get_state(self) -> dict:

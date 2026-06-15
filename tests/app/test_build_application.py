@@ -35,3 +35,22 @@ class BuildApplicationTest(unittest.TestCase):
                 application = build_application(Path(tmp), initialize_leds=False)
 
         self.assertIsInstance(application.runtime.led_driver, FakeLedDriver)
+
+    def test_build_application_wires_song_library_from_project_data_directory(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            songs_root = root / "data" / "songs" / "midi"
+            songs_root.mkdir(parents=True, exist_ok=True)
+            songs_root.joinpath("nocturne.mid").write_bytes(b"mid")
+
+            application = build_application(root)
+            self.assertEqual(
+                application.runtime.list_songs(),
+                [
+                    {
+                        "file_name": "nocturne.mid",
+                        "relative_path": "nocturne.mid",
+                        "display_title": "nocturne",
+                    }
+                ],
+            )

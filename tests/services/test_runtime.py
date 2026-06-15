@@ -14,6 +14,38 @@ from piano_led.songs.library import SongLibrary
 
 
 class PianoLedRuntimeTest(unittest.TestCase):
+    def test_runtime_refresh_state_reads_song_library_once_per_refresh(self) -> None:
+        class CountingSongLibrary:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def list_songs(self) -> list[dict]:
+                self.calls += 1
+                return [
+                    {
+                        "file_name": "etude.mid",
+                        "relative_path": "etude.mid",
+                        "display_title": "etude",
+                    }
+                ]
+
+        settings = AppSettings(led=LedSettings(total_leds=8))
+        driver = FakeLedDriver(total_leds=8)
+        song_library = CountingSongLibrary()
+        runtime = PianoLedRuntime(
+            settings=settings,
+            keymap=Keymap(note_to_led={60: 1}),
+            led_driver=driver,
+            song_library=song_library,
+        )
+        song_library.calls = 0
+        runtime.selected_song_path = "etude.mid"
+
+        runtime.refresh_state()
+
+        self.assertEqual(song_library.calls, 1)
+        self.assertEqual(runtime.get_state()["selected_song"]["relative_path"], "etude.mid")
+
     def test_runtime_lights_and_clears_notes_with_black_key_color(self) -> None:
         settings = AppSettings(
             led=LedSettings(
