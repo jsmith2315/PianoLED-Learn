@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import time
 
 from piano_led.app import build_application
 from piano_led.midi.input import MidoMidiInputPort, list_mido_input_ports
@@ -21,7 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     led_chase.add_argument("--steps", type=int, default=10)
 
     subparsers.add_parser("led-clear", help="Clear the LED strip")
-    subparsers.add_parser("midi-monitor", help="Subscribe to the configured live MIDI input")
+    midi_monitor = subparsers.add_parser("midi-monitor", help="Subscribe to the configured live MIDI input")
+    midi_monitor.add_argument("--seconds", type=float, default=None, help="Optional bounded monitoring duration")
     return parser
 
 
@@ -60,6 +62,14 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(midi_input, MidoMidiInputPort):
             midi_input.open()
             print(f"Listening to MIDI input: {midi_input.port_name}")
+            if args.seconds is not None:
+                time.sleep(max(0.0, args.seconds))
+                return 0
+            try:
+                while True:
+                    time.sleep(0.5)
+            except KeyboardInterrupt:
+                print("Stopped MIDI monitor.")
             return 0
         print("Configured MIDI backend is fake; set midi.backend to 'mido' and a real input port name.")
         return 0

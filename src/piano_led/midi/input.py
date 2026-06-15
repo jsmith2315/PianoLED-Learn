@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import importlib
 from collections.abc import Callable
 
@@ -55,4 +54,10 @@ class MidoMidiInputPort(MidiInputPort):
 
 def list_mido_input_ports(mido_module=None) -> list[str]:
     module = mido_module or importlib.import_module("mido")
-    return list(module.get_input_names())
+    seen: set[str] = set()
+    unique: list[str] = []
+    for name in module.get_input_names():
+        if name not in seen:
+            seen.add(name)
+            unique.append(name)
+    return unique

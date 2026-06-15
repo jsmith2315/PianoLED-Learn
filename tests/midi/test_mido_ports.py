@@ -76,3 +76,15 @@ class MidoPortTests(unittest.TestCase):
         self.assertEqual(created_messages[0].type, "note_on")
         self.assertEqual(created_messages[0].note, 64)
         self.assertEqual(output_handle.sent[1].type, "note_off")
+
+    def test_list_mido_ports_deduplicates_names(self) -> None:
+        fake_mido = types.SimpleNamespace(
+            get_input_names=lambda: ["A", "B", "A"],
+            get_output_names=lambda: ["Out", "Out", "Other"],
+        )
+
+        from piano_led.midi.input import list_mido_input_ports
+        from piano_led.midi.output import list_mido_output_ports
+
+        self.assertEqual(list_mido_input_ports(fake_mido), ["A", "B"])
+        self.assertEqual(list_mido_output_ports(fake_mido), ["Out", "Other"])

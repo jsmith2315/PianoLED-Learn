@@ -55,4 +55,10 @@ class MidoMidiOutputPort(MidiOutputPort):
 
 def list_mido_output_ports(mido_module=None) -> list[str]:
     module = mido_module or importlib.import_module("mido")
-    return list(module.get_output_names())
+    seen: set[str] = set()
+    unique: list[str] = []
+    for name in module.get_output_names():
+        if name not in seen:
+            seen.add(name)
+            unique.append(name)
+    return unique
