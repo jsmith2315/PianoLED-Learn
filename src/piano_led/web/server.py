@@ -178,7 +178,6 @@ KEYMAP_HTML = """<!doctype html>
           <label><input id="full-preview-toggle" type="checkbox"> Full Keyboard Preview During Calibration</label>
           <button onclick="startCalibration()">Start Calibration</button>
           <button onclick="stopCalibration()">Stop Calibration</button>
-          <button onclick="armNextKey()">Use Next Piano Key</button>
           <button onclick="selectKey()">Select Key</button>
           <button onclick="shiftLed('left')">Shift Left on Piano</button>
           <button onclick="shiftLed('right')">Shift Right on Piano</button>
@@ -194,7 +193,7 @@ KEYMAP_HTML = """<!doctype html>
         <h2>What to Expect</h2>
         <p>Generate Base Keymap saves a first-pass map using the current LED count, first LED, and direction.</p>
         <p>Preview Full Map lights the current keymap using note color for white keys and black-key color for black keys, so you can shift the whole map closer before fine tuning.</p>
-        <p>Start Calibration now immediately listens for piano keys. Use Next Piano Key simply re-arms that listener if you want an explicit reset.</p>
+        <p>Start Calibration immediately listens for piano keys. Turn on full-keyboard preview if you want every mapped note lit between edits.</p>
         <p>When no note is selected, press a piano key to choose it and light its current LED. Once a note is selected, pressing any lower piano key nudges that LED one step left, and pressing any higher piano key nudges it one step right.</p>
         <p>Press the selected piano key again to save that mapping. If full-keyboard preview is enabled, the whole keyboard comes back after each confirm.</p>
         <p>Shift Left on Piano and Shift Right on Piano follow the physical piano direction even when the strip starts on the right side.</p>
@@ -308,14 +307,6 @@ KEYMAP_HTML = """<!doctype html>
         }));
       }
 
-      async function armNextKey() {
-        await runAction(() => fetchJson('/api/calibration/arm', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: '{}'
-        }));
-      }
-
       async function stopCalibration() {
         await runAction(() => fetchJson('/api/calibration/stop', {
           method: 'POST',
@@ -347,6 +338,10 @@ KEYMAP_HTML = """<!doctype html>
           body: JSON.stringify({note: Number(document.getElementById('selected-note').value)})
         }));
       }
+
+      document.getElementById('full-preview-toggle').addEventListener('change', () => {
+        runAction(() => setCalibrationDisplayMode());
+      });
 
       refreshState();
       setInterval(refreshState, 750);

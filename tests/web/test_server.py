@@ -96,7 +96,7 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("Last Response", html)
         self.assertIn("Clear Strip", html)
         self.assertIn("Download Keymap", html)
-        self.assertIn("Use Next Piano Key", html)
+        self.assertNotIn("Use Next Piano Key", html)
         self.assertIn("Stop Calibration", html)
         self.assertIn("Live Runtime", html)
         self.assertIn("Preview Full Map", html)
@@ -105,6 +105,7 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("Full Keyboard Preview During Calibration", html)
         self.assertIn("Shift Left on Piano", html)
         self.assertIn("Shift Right on Piano", html)
+        self.assertIn("document.getElementById('full-preview-toggle').addEventListener('change'", html)
         self.assertIn("cache: 'no-store'", html)
         self.assertIn("last_note_event", html)
 
