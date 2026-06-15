@@ -573,7 +573,7 @@ def create_web_app(runtime: PianoLedRuntime):
         raw_body = environ["wsgi.input"].read(length) if length else b""
         try:
             body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
-        except json.JSONDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             return _json_response(
                 start_response,
                 {"error": "invalid_json", "message": "Request body must be valid JSON."},

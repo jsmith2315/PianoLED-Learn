@@ -263,6 +263,11 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(non_object_payload["error"], "invalid_request")
         self.assertIn("JSON object", non_object_payload["message"])
 
+        status, _, payload = _invoke(app, "POST", "/api/song-selection", b"\xff")
+        invalid_utf8_payload = json.loads(payload.decode("utf-8"))
+        self.assertEqual(status, "400 Bad Request")
+        self.assertEqual(invalid_utf8_payload["error"], "invalid_json")
+
     def test_song_pages_include_friendly_empty_state_copy(self) -> None:
         application = self._build_test_application()
         app = create_web_app(application.runtime)
