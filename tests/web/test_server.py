@@ -237,6 +237,9 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("Learning Mode", practice_html)
         self.assertIn("selected-song-output", practice_html)
         self.assertIn("fetchJson('/api/song-selection')", practice_html)
+        self.assertIn("selectionPayload.selected_song", practice_html)
+        self.assertIn("const output = document.getElementById('selected-song-output');", practice_html)
+        self.assertIn("output.textContent = JSON.stringify(selectionPayload, null, 2);", practice_html)
 
     def test_song_pages_include_friendly_empty_state_copy(self) -> None:
         application = self._build_test_application()
@@ -252,4 +255,18 @@ class WebServerTest(unittest.TestCase):
         practice_html = payload.decode("utf-8")
         self.assertEqual(status, "200 OK")
         self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
-        self.assertIn("No song selected yet.", practice_html)
+        self.assertIn("No MIDI files found in data/songs/midi yet.", practice_html)
+
+    def test_practice_page_includes_no_selection_copy_when_songs_exist(self) -> None:
+        application = self._build_test_application()
+        songs_dir = application.settings_store.path.parent.parent / "songs" / "midi"
+        songs_dir.mkdir(parents=True, exist_ok=True)
+        songs_dir.joinpath("Moonlight.mid").write_bytes(b"mid")
+        application = build_application(project_root=application.settings_store.path.parent.parent.parent)
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/practice")
+        practice_html = payload.decode("utf-8")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertIn("No song selected yet. Choose a MIDI file on the Songs page to begin practicing.", practice_html)
