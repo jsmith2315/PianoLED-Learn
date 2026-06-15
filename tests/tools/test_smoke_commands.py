@@ -126,3 +126,30 @@ class SmokeCommandTests(unittest.TestCase):
             self.assertEqual(main(["web-serve", "--host", "0.0.0.0", "--port", "8080", "--seconds", "0"]), 0)
 
         self.assertGreaterEqual(fake_server.calls, 100)
+
+    def test_web_serve_command_can_open_live_midi_too(self) -> None:
+        class FakeServer:
+            def __init__(self):
+                self.timeout = None
+
+            def handle_request(self):
+                return None
+
+            def server_close(self):
+                return None
+
+        fake_port = MidoMidiInputPort(port_name="Test Port", mido_module=object())
+        opened = {"called": False}
+        fake_port.open = lambda: opened.__setitem__("called", True)
+        fake_runtime = type("Runtime", (), {"describe": lambda self: "runtime ok"})()
+        fake_application = type("App", (), {"runtime": fake_runtime, "midi_input": fake_port})()
+
+        with patch("piano_led.main.build_application", return_value=fake_application), patch(
+            "piano_led.main.make_server", return_value=FakeServer()
+        ):
+            self.assertEqual(
+                main(["web-serve", "--host", "0.0.0.0", "--port", "8080", "--seconds", "0", "--with-live"]),
+                0,
+            )
+
+        self.assertTrue(opened["called"])

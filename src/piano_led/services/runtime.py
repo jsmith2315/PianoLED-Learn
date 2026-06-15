@@ -38,6 +38,7 @@ class PianoLedRuntime:
         self.key_mapper = KeyMapper(keymap)
         self.active_notes: set[int] = set()
         self.calibration_session: CalibrationSession | None = None
+        self.awaiting_calibration_note = False
         self.chase_index = 0
         self.midi_input: MidiInputPort | None = None
         self.refresh_state()
@@ -55,6 +56,9 @@ class PianoLedRuntime:
         )
 
     def handle_note_event(self, event: NoteEvent) -> None:
+        if event.event_type == "note_on" and self.awaiting_calibration_note:
+            self.capture_calibration_note(event.note)
+
         led_index = self.key_mapper.led_for_note(event.note)
         if led_index is None:
             return
@@ -113,8 +117,30 @@ class PianoLedRuntime:
     def start_calibration(self) -> dict:
         note_order = list(range(LOWEST_PIANO_NOTE, HIGHEST_PIANO_NOTE + 1))
         self.calibration_session = CalibrationSession(keymap=self.keymap, note_order=note_order)
+        self.awaiting_calibration_note = False
         self.refresh_state()
         return self.calibration_session.to_dict()
+
+    def arm_calibration_note_capture(self) -> dict:
+        """Wait for the next live piano key press to select or confirm calibration."""
+
+        if self.calibration_session is None:
+            self.start_calibration()
+        self.awaiting_calibration_note = True
+        self.refresh_state()
+        return self.get_calibration_state()
+
+    def capture_calibration_note(self, note: int) -> dict:
+        """Consume the next armed piano key press for calibration workflow."""
+
+        if self.calibration_session is None:
+            self.start_calibration()
+
+        assert self.calibration_session is not None
+        self.awaiting_calibration_note = False
+        if self.calibration_session.selected_note == note:
+            return self.calibration_confirm(note)
+        return self.calibration_select_key(note)
 
     def get_keymap_state(self) -> dict:
         """Return the current keymap plus a few useful summary values."""
@@ -130,12 +156,17 @@ class PianoLedRuntime:
         """Return whether calibration is active and the current session payload."""
 
         session = self.calibration_session.to_dict() if self.calibration_session else None
-        return {"active": self.calibration_session is not None, "session": session}
+        return {
+            "active": self.calibration_session is not None,
+            "awaiting_note": self.awaiting_calibration_note,
+            "session": session,
+        }
 
     def calibration_select_key(self, note: int) -> dict:
         if self.calibration_session is None:
             self.start_calibration()
         assert self.calibration_session is not None
+        self.awaiting_calibration_note = False
         led_index = self.calibration_session.select_key(note)
         self.clear_leds()
         self.led_driver.set_pixel(led_index, self.note_color_for(note))
@@ -146,6 +177,7 @@ class PianoLedRuntime:
     def calibration_shift(self, delta: int) -> dict:
         if self.calibration_session is None:
             raise RuntimeError("Calibration has not started")
+        self.awaiting_calibration_note = False
         led_index = self.calibration_session.shift(delta)
         selected = self.calibration_session.selected_note
         self.clear_leds()
@@ -158,7 +190,9 @@ class PianoLedRuntime:
     def calibration_confirm(self, note: int) -> dict:
         if self.calibration_session is None:
             raise RuntimeError("Calibration has not started")
+        self.awaiting_calibration_note = False
         self.calibration_session.confirm_key(note)
+        self.clear_leds()
         if self.keymap_store is not None:
             self.keymap_store.save(self.keymap)
         self.refresh_state()

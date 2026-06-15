@@ -42,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     web_serve.add_argument("--host", default="0.0.0.0")
     web_serve.add_argument("--port", type=int, default=8080)
     web_serve.add_argument("--seconds", type=float, default=None, help="Optional bounded runtime duration")
+    web_serve.add_argument("--with-live", action="store_true", help="Also open the configured live MIDI input")
     return parser
 
 
@@ -80,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
             print("mido backend is not installed yet on this machine.")
         return 0
 
-    initialize_leds = args.command in {"led-chase", "led-clear", "midi-monitor", "run-live", None}
+    initialize_leds = args.command in {"led-chase", "led-clear", "midi-monitor", "run-live", "web-serve", None}
     application = build_application(project_root, initialize_leds=initialize_leds)
 
     if args.command == "keymap-generate":
@@ -93,6 +94,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "web-serve":
+        if args.with_live:
+            midi_input = application.midi_input
+            if isinstance(midi_input, MidoMidiInputPort):
+                midi_input.open()
+                print(f"Listening to MIDI input: {midi_input.port_name}")
+            else:
+                print("Configured MIDI backend is fake; web server will run without live MIDI input.")
         app = create_web_app(application.runtime)
         server = make_server(args.host, args.port, app)
         server.timeout = 0.5

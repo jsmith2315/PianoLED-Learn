@@ -1,3 +1,5 @@
+"""Web server tests for keymap, calibration, and runtime-facing browser APIs."""
+
 import io
 import json
 import unittest
@@ -50,6 +52,10 @@ class WebServerTest(unittest.TestCase):
         self.assertIn("Generate Base Keymap", html)
         self.assertIn("Calibration Controls", html)
         self.assertIn("right_to_left", html)
+        self.assertIn("What to Expect", html)
+        self.assertIn("Last Response", html)
+        self.assertIn("Use Next Piano Key", html)
+        self.assertIn("Live Runtime", html)
 
         status, headers, payload = _invoke(app, "GET", "/api/keymap")
         keymap_state = json.loads(payload.decode("utf-8"))
@@ -64,6 +70,10 @@ class WebServerTest(unittest.TestCase):
         calibration_state = json.loads(payload.decode("utf-8"))
         self.assertEqual(calibration_state["active"], True)
         self.assertIn("remaining_notes", calibration_state["session"])
+
+        status, _, payload = _invoke(app, "POST", "/api/calibration/arm", b"{}")
+        calibration_state = json.loads(payload.decode("utf-8"))
+        self.assertTrue(calibration_state["awaiting_note"])
 
     def test_settings_api_can_flip_strip_direction(self) -> None:
         application = build_application()
