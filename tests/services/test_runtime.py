@@ -14,7 +14,7 @@ from piano_led.songs.library import SongLibrary
 
 
 class PianoLedRuntimeTest(unittest.TestCase):
-    def test_runtime_refresh_state_reads_song_library_once_per_refresh(self) -> None:
+    def test_runtime_refresh_state_uses_cached_song_snapshot_without_rescanning(self) -> None:
         class CountingSongLibrary:
             def __init__(self) -> None:
                 self.calls = 0
@@ -38,12 +38,12 @@ class PianoLedRuntimeTest(unittest.TestCase):
             led_driver=driver,
             song_library=song_library,
         )
+        runtime.select_song("etude.mid")
         song_library.calls = 0
-        runtime.selected_song_path = "etude.mid"
 
         runtime.refresh_state()
 
-        self.assertEqual(song_library.calls, 1)
+        self.assertEqual(song_library.calls, 0)
         self.assertEqual(runtime.get_state()["selected_song"]["relative_path"], "etude.mid")
 
     def test_runtime_lights_and_clears_notes_with_black_key_color(self) -> None:

@@ -10,6 +10,13 @@ from piano_led.songs.library import SongLibrary
 
 
 class SongLibraryTest(unittest.TestCase):
+    def test_list_songs_returns_empty_when_root_is_not_a_directory(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "midi"
+            root.write_bytes(b"not a directory")
+
+            self.assertEqual(SongLibrary(root).list_songs(), [])
+
     def test_list_songs_only_returns_mid_and_midi_files(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

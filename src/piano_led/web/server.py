@@ -375,7 +375,9 @@ SONGS_HTML = """<!doctype html>
       <section class="panel">
         <label>Available MIDI Files</label>
         <p id="songs-empty-state">No MIDI files found in data/songs/midi yet.</p>
-        <select id="song-select" hidden disabled></select>
+        <select id="song-select" hidden disabled>
+          <option value="" selected>Choose a song...</option>
+        </select>
         <button id="song-select-button" onclick="saveSongSelection()" hidden disabled>Use This Song</button>
       </section>
       <section class="panel">
@@ -387,6 +389,12 @@ SONGS_HTML = """<!doctype html>
       async function fetchJson(url, options) {
         const response = await fetch(url, {...(options || {}), cache: 'no-store'});
         return await response.json();
+      }
+
+      function updateSongSelectionButton() {
+        const select = document.getElementById('song-select');
+        const button = document.getElementById('song-select-button');
+        button.disabled = !select.value;
       }
 
       async function refreshSongs() {
@@ -410,7 +418,14 @@ SONGS_HTML = """<!doctype html>
         select.hidden = false;
         select.disabled = false;
         button.hidden = false;
-        button.disabled = false;
+        if (!selectionPayload.selected_song) {
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Choose a song...';
+          placeholder.disabled = true;
+          placeholder.selected = true;
+          select.appendChild(placeholder);
+        }
         for (const song of songsPayload.songs) {
           const option = document.createElement('option');
           option.value = song.relative_path;
@@ -420,6 +435,7 @@ SONGS_HTML = """<!doctype html>
           }
           select.appendChild(option);
         }
+        updateSongSelectionButton();
         if (!selectionPayload.selected_song) {
           output.textContent = 'No song selected yet.';
           return;
@@ -436,6 +452,7 @@ SONGS_HTML = """<!doctype html>
         await refreshSongs();
       }
 
+      document.getElementById('song-select').addEventListener('change', updateSongSelectionButton);
       refreshSongs();
       setInterval(refreshSongs, 1000);
     </script>

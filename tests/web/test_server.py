@@ -293,6 +293,17 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("No MIDI files found in data/songs/midi yet.", practice_html)
 
+    def test_song_page_includes_placeholder_for_unselected_song_state(self) -> None:
+        application = self._build_test_application()
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/songs")
+        songs_html = payload.decode("utf-8")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertIn("Choose a song...", songs_html)
+
     def test_practice_page_includes_no_selection_copy_when_songs_exist(self) -> None:
         application = self._build_test_application()
         songs_dir = application.settings_store.path.parent.parent / "songs" / "midi"

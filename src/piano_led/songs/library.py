@@ -26,7 +26,7 @@ class SongLibrary:
 
     def list_songs(self) -> list[dict]:
         entries: list[SongEntry] = []
-        if not self.midi_root.exists():
+        if not self.midi_root.is_dir():
             return []
 
         for path in sorted(self.midi_root.iterdir(), key=lambda item: item.name.lower()):
