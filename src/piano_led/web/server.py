@@ -405,7 +405,8 @@ SONGS_HTML = """<!doctype html>
         const button = document.getElementById('song-select-button');
         const output = document.getElementById('song-selection-output');
         const pendingValue = select.value;
-        const effectiveSelectedPath = selectionPayload.selected_song_path || pendingValue;
+        const hasPendingSelection = pendingValue && pendingValue !== selectionPayload.selected_song_path;
+        const effectiveSelectedPath = hasPendingSelection ? pendingValue : selectionPayload.selected_song_path;
         select.innerHTML = '';
         if (!songsPayload.songs.length) {
           emptyState.hidden = false;
