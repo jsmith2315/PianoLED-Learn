@@ -304,6 +304,23 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(headers["Cache-Control"], "no-store")
         self.assertIn("Choose a song...", songs_html)
 
+    def test_song_page_preserves_local_unsaved_selection_during_poll_refresh(self) -> None:
+        application = self._build_test_application()
+        app = create_web_app(application.runtime)
+
+        status, headers, payload = _invoke(app, "GET", "/songs")
+        songs_html = payload.decode("utf-8")
+
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(headers["Content-Type"], "text/html; charset=utf-8")
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertIn("const pendingValue = select.value;", songs_html)
+        self.assertIn(
+            "const effectiveSelectedPath = selectionPayload.selected_song_path || pendingValue;",
+            songs_html,
+        )
+        self.assertIn("if (effectiveSelectedPath === song.relative_path)", songs_html)
+
     def test_practice_page_includes_no_selection_copy_when_songs_exist(self) -> None:
         application = self._build_test_application()
         songs_dir = application.settings_store.path.parent.parent / "songs" / "midi"

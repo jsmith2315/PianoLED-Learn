@@ -404,6 +404,8 @@ SONGS_HTML = """<!doctype html>
         const select = document.getElementById('song-select');
         const button = document.getElementById('song-select-button');
         const output = document.getElementById('song-selection-output');
+        const pendingValue = select.value;
+        const effectiveSelectedPath = selectionPayload.selected_song_path || pendingValue;
         select.innerHTML = '';
         if (!songsPayload.songs.length) {
           emptyState.hidden = false;
@@ -418,7 +420,7 @@ SONGS_HTML = """<!doctype html>
         select.hidden = false;
         select.disabled = false;
         button.hidden = false;
-        if (!selectionPayload.selected_song) {
+        if (!songsPayload.songs.some(song => song.relative_path === effectiveSelectedPath)) {
           const placeholder = document.createElement('option');
           placeholder.value = '';
           placeholder.textContent = 'Choose a song...';
@@ -430,7 +432,7 @@ SONGS_HTML = """<!doctype html>
           const option = document.createElement('option');
           option.value = song.relative_path;
           option.textContent = song.display_title;
-          if (selectionPayload.selected_song_path === song.relative_path) {
+          if (effectiveSelectedPath === song.relative_path) {
             option.selected = true;
           }
           select.appendChild(option);
