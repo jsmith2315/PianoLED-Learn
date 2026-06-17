@@ -21,12 +21,17 @@ def _merge_dicts(base: dict, override: dict) -> dict:
 
 @dataclass
 class LedSettings:
-    """LED-strip parameters and backend selection."""
+    """LED-strip parameters, backend selection, and hand-aware colors."""
+
     total_leds: int = 176
     leds_per_meter: int = 144
     note_color: str = "#00b894"
     black_key_color: str = "#0984e3"
     use_black_key_color: bool = True
+    left_hand_note_color: str = "#00b894"
+    left_hand_black_key_color: str = "#0984e3"
+    right_hand_note_color: str = "#e17055"
+    right_hand_black_key_color: str = "#d63031"
     strip_direction: str = "left_to_right"
     default_first_led: int = 0
     backend: str = "fake"

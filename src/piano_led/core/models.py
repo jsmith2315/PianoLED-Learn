@@ -29,6 +29,9 @@ class TimedMidiEvent:
 
     time_seconds: float
     event: NoteEvent
+    track_index: int | None = None
+    channel: int | None = None
+    hand: str = "unassigned"
 
 
 @dataclass(frozen=True)
@@ -52,6 +55,7 @@ class PlaybackState:
     elapsed_seconds: float = 0.0
     active_notes: list[int] = field(default_factory=list)
     midi_output_enabled: bool = False
+    hand_mode: str = "both"
     error: str | None = None
 
     def to_dict(self) -> dict:
