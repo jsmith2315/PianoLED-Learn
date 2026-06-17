@@ -260,13 +260,6 @@ class PianoLedRuntime:
         self.refresh_state()
         return self.get_playback_state()
 
-    def _song_midi_path(self, relative_path: str) -> str:
-        """Return the absolute MIDI path for one known song."""
-
-        if self.song_library is None:
-            raise RuntimeError("Song library is not configured.")
-        return str(self.song_library.midi_root / relative_path)
-
     def get_song_hand_config_state(self, relative_path: str) -> dict:
         """Return saved hand config plus available tracks and channels for one song."""
 
@@ -277,7 +270,8 @@ class PianoLedRuntime:
         midi_path = self.song_library.midi_root / relative_path if self.song_library is not None else None
         if midi_path is None:
             raise RuntimeError("Song library is not configured.")
-        selected_song = next((song for song in self.song_snapshot["songs"] if song["relative_path"] == relative_path), None)
+        snapshot = self._reload_song_snapshot()
+        selected_song = next((song for song in snapshot["songs"] if song["relative_path"] == relative_path), None)
         if selected_song is None:
             raise RuntimeError(f"Unknown song selection: {relative_path}")
         summary = self.playback.midi_loader.summarize(midi_path, relative_path, selected_song["display_title"])
@@ -335,6 +329,18 @@ class PianoLedRuntime:
             raise RuntimeError("No left-hand mapping saved for this song yet.")
         if self.playback_hand_mode == "right" and not (hand_config.right_hand_tracks or hand_config.right_hand_channels):
             raise RuntimeError("No right-hand mapping saved for this song yet.")
+        hand_state = self.get_song_hand_config_state(selected_song["relative_path"])
+        invalid = hand_state["invalid"]
+        if self.playback_hand_mode == "left" and (
+            hand_config.left_hand_tracks == invalid["left_hand_tracks"]
+            and hand_config.left_hand_channels == invalid["left_hand_channels"]
+        ):
+            raise RuntimeError("Saved left-hand mapping does not match this MIDI file anymore.")
+        if self.playback_hand_mode == "right" and (
+            hand_config.right_hand_tracks == invalid["right_hand_tracks"]
+            and hand_config.right_hand_channels == invalid["right_hand_channels"]
+        ):
+            raise RuntimeError("Saved right-hand mapping does not match this MIDI file anymore.")
 
         midi_path = self.song_library.midi_root / selected_song["relative_path"]
         payload = self.playback.play_song(

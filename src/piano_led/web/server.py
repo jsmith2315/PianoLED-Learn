@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+from urllib.parse import parse_qs
 
 from piano_led.services.runtime import PianoLedRuntime
 
@@ -74,6 +75,14 @@ SETTINGS_HTML = """<!doctype html>
           <input id="note-color" type="color" value="#00b894">
           <label>Black Key Color</label>
           <input id="black-key-color" type="color" value="#0984e3">
+          <label>Left Hand Color</label>
+          <input id="left-hand-note-color" type="color" value="#00b894">
+          <label>Left Hand Black Key Color</label>
+          <input id="left-hand-black-key-color" type="color" value="#0984e3">
+          <label>Right Hand Color</label>
+          <input id="right-hand-note-color" type="color" value="#e17055">
+          <label>Right Hand Black Key Color</label>
+          <input id="right-hand-black-key-color" type="color" value="#d63031">
           <label><input id="use-black-key-color" type="checkbox"> Use Different Black Key Color</label>
           <label>Brightness</label>
           <input id="brightness" type="range" min="0" max="255" value="128">
@@ -100,6 +109,10 @@ SETTINGS_HTML = """<!doctype html>
         const settings = await fetchJson('/api/settings');
         document.getElementById('note-color').value = settings.led.note_color;
         document.getElementById('black-key-color').value = settings.led.black_key_color;
+        document.getElementById('left-hand-note-color').value = settings.led.left_hand_note_color;
+        document.getElementById('left-hand-black-key-color').value = settings.led.left_hand_black_key_color;
+        document.getElementById('right-hand-note-color').value = settings.led.right_hand_note_color;
+        document.getElementById('right-hand-black-key-color').value = settings.led.right_hand_black_key_color;
         document.getElementById('use-black-key-color').checked = settings.led.use_black_key_color;
         document.getElementById('brightness').value = settings.led.brightness;
         document.getElementById('brightness-value').textContent = settings.led.brightness;
@@ -113,6 +126,10 @@ SETTINGS_HTML = """<!doctype html>
             led: {
               note_color: document.getElementById('note-color').value,
               black_key_color: document.getElementById('black-key-color').value,
+              left_hand_note_color: document.getElementById('left-hand-note-color').value,
+              left_hand_black_key_color: document.getElementById('left-hand-black-key-color').value,
+              right_hand_note_color: document.getElementById('right-hand-note-color').value,
+              right_hand_black_key_color: document.getElementById('right-hand-black-key-color').value,
               use_black_key_color: document.getElementById('use-black-key-color').checked,
               brightness: Number(document.getElementById('brightness').value)
             }
@@ -372,17 +389,41 @@ SONGS_HTML = """<!doctype html>
     <div class="card">
       <h1>Song Selection</h1>
       <p>Choose a MIDI file here once, and the current learning page will use the same selection.</p>
+      <div class="grid">
+        <section class="panel">
+          <label>Available MIDI Files</label>
+          <p id="songs-empty-state">No MIDI files found in data/songs/midi yet.</p>
+          <select id="song-select" hidden disabled>
+            <option value="" selected>Choose a song...</option>
+          </select>
+          <button id="song-select-button" onclick="saveSongSelection()" hidden disabled>Use This Song</button>
+        </section>
+        <section class="panel">
+          <h2>Current Selection</h2>
+          <pre id="song-selection-output">No song selected yet.</pre>
+        </section>
+      </div>
       <section class="panel">
-        <label>Available MIDI Files</label>
-        <p id="songs-empty-state">No MIDI files found in data/songs/midi yet.</p>
-        <select id="song-select" hidden disabled>
-          <option value="" selected>Choose a song...</option>
-        </select>
-        <button id="song-select-button" onclick="saveSongSelection()" hidden disabled>Use This Song</button>
-      </section>
-      <section class="panel">
-        <h2>Current Selection</h2>
-        <pre id="song-selection-output">No song selected yet.</pre>
+        <h2>Hand Setup</h2>
+        <p id="hand-setup-empty">Select a song to configure left and right hand sources.</p>
+        <div id="hand-setup-editor" hidden>
+          <div class="grid">
+            <section class="panel">
+              <label>Left Hand Tracks</label>
+              <div id="left-track-options"></div>
+              <label>Left Hand Channels</label>
+              <div id="left-channel-options"></div>
+            </section>
+            <section class="panel">
+              <label>Right Hand Tracks</label>
+              <div id="right-track-options"></div>
+              <label>Right Hand Channels</label>
+              <div id="right-channel-options"></div>
+            </section>
+          </div>
+          <button id="save-hand-setup-button" onclick="saveHandSetup()">Save Hand Setup</button>
+        </div>
+        <pre id="hand-setup-output">No hand setup loaded yet.</pre>
       </section>
     </div>
     <script>
@@ -395,6 +436,57 @@ SONGS_HTML = """<!doctype html>
         const select = document.getElementById('song-select');
         const button = document.getElementById('song-select-button');
         button.disabled = !select.value;
+      }
+
+      function renderCheckboxGroup(targetId, values, selectedValues, groupName) {
+        const target = document.getElementById(targetId);
+        target.innerHTML = '';
+        if (!values.length) {
+          target.textContent = 'None found in this song.';
+          return;
+        }
+        for (const value of values) {
+          const row = document.createElement('label');
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.dataset.group = groupName;
+          input.value = String(value);
+          input.checked = selectedValues.includes(value);
+          row.appendChild(input);
+          row.appendChild(document.createTextNode(' ' + value));
+          target.appendChild(row);
+        }
+      }
+
+      function collectCheckedValues(groupName) {
+        return Array.from(document.querySelectorAll('input[data-group="' + groupName + '"]:checked'))
+          .map((element) => Number(element.value));
+      }
+
+      async function refreshHandSetup(selectedPath) {
+        const emptyState = document.getElementById('hand-setup-empty');
+        const editor = document.getElementById('hand-setup-editor');
+        const output = document.getElementById('hand-setup-output');
+        if (!selectedPath) {
+          emptyState.hidden = false;
+          editor.hidden = true;
+          output.textContent = 'Select a song to configure left and right hand sources.';
+          return;
+        }
+        const payload = await fetchJson('/api/song-hand-config?relative_path=' + encodeURIComponent(selectedPath));
+        if (payload.error) {
+          emptyState.hidden = false;
+          editor.hidden = true;
+          output.textContent = JSON.stringify(payload, null, 2);
+          return;
+        }
+        emptyState.hidden = true;
+        editor.hidden = false;
+        renderCheckboxGroup('left-track-options', payload.summary.track_indices, payload.config.left_hand_tracks, 'left_track');
+        renderCheckboxGroup('right-track-options', payload.summary.track_indices, payload.config.right_hand_tracks, 'right_track');
+        renderCheckboxGroup('left-channel-options', payload.summary.channels, payload.config.left_hand_channels, 'left_channel');
+        renderCheckboxGroup('right-channel-options', payload.summary.channels, payload.config.right_hand_channels, 'right_channel');
+        output.textContent = JSON.stringify(payload, null, 2);
       }
 
       async function refreshSongs() {
@@ -415,6 +507,7 @@ SONGS_HTML = """<!doctype html>
           button.hidden = true;
           button.disabled = true;
           output.textContent = 'No MIDI files found in data/songs/midi yet.';
+          await refreshHandSetup('');
           return;
         }
         emptyState.hidden = true;
@@ -441,9 +534,10 @@ SONGS_HTML = """<!doctype html>
         updateSongSelectionButton();
         if (!selectionPayload.selected_song) {
           output.textContent = 'No song selected yet.';
-          return;
+        } else {
+          output.textContent = JSON.stringify(selectionPayload, null, 2);
         }
-        output.textContent = JSON.stringify(selectionPayload, null, 2);
+        await refreshHandSetup(selectionPayload.selected_song_path || effectiveSelectedPath || '');
       }
 
       async function saveSongSelection() {
@@ -455,7 +549,27 @@ SONGS_HTML = """<!doctype html>
         await refreshSongs();
       }
 
-      document.getElementById('song-select').addEventListener('change', updateSongSelectionButton);
+      async function saveHandSetup() {
+        const relativePath = document.getElementById('song-select').value;
+        const payload = await fetchJson('/api/song-hand-config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            relative_path: relativePath,
+            left_hand_tracks: collectCheckedValues('left_track'),
+            right_hand_tracks: collectCheckedValues('right_track'),
+            left_hand_channels: collectCheckedValues('left_channel'),
+            right_hand_channels: collectCheckedValues('right_channel')
+          })
+        });
+        document.getElementById('hand-setup-output').textContent = JSON.stringify(payload, null, 2);
+        await refreshHandSetup(relativePath);
+      }
+
+      document.getElementById('song-select').addEventListener('change', async () => {
+        updateSongSelectionButton();
+        await refreshHandSetup(document.getElementById('song-select').value);
+      });
       refreshSongs();
       setInterval(refreshSongs, 1000);
     </script>
@@ -513,6 +627,12 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
       </section>
       <section class="panel">
         <h2>Playback</h2>
+        <label>Playback Hand Mode</label>
+        <select id="playback-hand-mode">
+          <option value="both">Both</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
         <button onclick="playSelectedSong()">Play Selected Song</button>
         <button onclick="stopPlayback()">Stop</button>
         <pre id="playback-output">""" + playback_text + """</pre>
@@ -544,6 +664,7 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
           output.hidden = false;
           output.textContent = JSON.stringify(selectionPayload, null, 2);
         }
+        document.getElementById('playback-hand-mode').value = playbackPayload.hand_mode || 'both';
         document.getElementById('playback-output').textContent = JSON.stringify(playbackPayload, null, 2);
       }
 
@@ -568,6 +689,16 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
         document.getElementById('playback-output').textContent = JSON.stringify(payload, null, 2);
         await refreshPractice();
       }
+
+      document.getElementById('playback-hand-mode').addEventListener('change', async (event) => {
+        const payload = await fetchJson('/api/playback-mode', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({hand_mode: event.target.value})
+        });
+        document.getElementById('playback-output').textContent = JSON.stringify(payload, null, 2);
+        await refreshPractice();
+      });
 
       refreshPractice();
       setInterval(refreshPractice, 500);
@@ -626,6 +757,7 @@ def create_web_app(runtime: PianoLedRuntime):
     def application(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
+        query = parse_qs(environ.get("QUERY_STRING", ""), keep_blank_values=True)
         length = int(environ.get("CONTENT_LENGTH", "0") or "0")
         raw_body = environ["wsgi.input"].read(length) if length else b""
         try:
@@ -681,8 +813,36 @@ def create_web_app(runtime: PianoLedRuntime):
                 return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
             return _json_response(start_response, payload)
 
+        if method == "GET" and path == "/api/song-hand-config":
+            relative_path = query.get("relative_path", [""])[0]
+            try:
+                payload = runtime.get_song_hand_config_state(relative_path)
+            except RuntimeError as error:
+                return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
+            return _json_response(start_response, payload)
+
+        if method == "POST" and path == "/api/song-hand-config":
+            try:
+                payload = runtime.save_song_hand_config(
+                    relative_path=str(body["relative_path"]),
+                    left_hand_tracks=[int(value) for value in body.get("left_hand_tracks", [])],
+                    right_hand_tracks=[int(value) for value in body.get("right_hand_tracks", [])],
+                    left_hand_channels=[int(value) for value in body.get("left_hand_channels", [])],
+                    right_hand_channels=[int(value) for value in body.get("right_hand_channels", [])],
+                )
+            except (RuntimeError, ValueError, KeyError) as error:
+                return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
+            return _json_response(start_response, payload)
+
         if method == "GET" and path == "/api/playback":
             return _json_response(start_response, runtime.get_playback_state())
+
+        if method == "POST" and path == "/api/playback-mode":
+            try:
+                payload = runtime.set_playback_hand_mode(str(body["hand_mode"]))
+            except (RuntimeError, ValueError, KeyError) as error:
+                return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
+            return _json_response(start_response, payload)
 
         if method == "POST" and path == "/api/playback/play":
             try:
