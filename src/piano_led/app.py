@@ -14,6 +14,7 @@ from piano_led.midi.input import FakeMidiInputPort, MidoMidiInputPort
 from piano_led.midi.output import FakeMidiOutputPort, MidoMidiOutputPort
 from piano_led.services.runtime import PianoLedRuntime
 from piano_led.services.state_store import StateStore
+from piano_led.songs.hand_config import SongHandConfigStore
 from piano_led.songs.library import SongLibrary
 
 
@@ -41,6 +42,7 @@ def build_application(project_root: Path | None = None, initialize_leds: bool = 
     local_settings_path = root / "data" / "settings" / "settings.local.json"
     keymap_path = root / "data" / "keymaps" / "default_88.json"
     songs_root = root / "data" / "songs" / "midi"
+    song_hand_config_root = root / "data" / "songs" / "metadata"
 
     settings_store = SettingsStore(settings_path, local_path=local_settings_path)
     settings = settings_store.load()
@@ -71,6 +73,7 @@ def build_application(project_root: Path | None = None, initialize_leds: bool = 
 
     state_store = StateStore()
     song_library = SongLibrary(songs_root)
+    song_hand_config_store = SongHandConfigStore(song_hand_config_root)
     runtime = PianoLedRuntime(
         settings=settings,
         keymap=keymap,
@@ -80,6 +83,7 @@ def build_application(project_root: Path | None = None, initialize_leds: bool = 
         state_store=state_store,
         song_library=song_library,
         midi_output=midi_output,
+        song_hand_config_store=song_hand_config_store,
     )
     runtime.attach_midi_input(midi_input)
     return Application(
