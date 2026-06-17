@@ -7,8 +7,9 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from piano_led.core.models import LoadedMidiSong, NoteEvent, PlaybackState
+from piano_led.core.models import LoadedMidiSong, NoteEvent, PlaybackState, TimedMidiEvent
 from piano_led.midi.output import MidiOutputPort
+from piano_led.songs.hand_config import SongHandConfig
 from piano_led.songs.midi_loader import MidiSongLoader
 
 
@@ -22,8 +23,8 @@ class PlaybackService:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
-        self._active_notes: set[int] = set()
-        self._emit_note_event: Callable[[NoteEvent], None] | None = None
+        self._active_notes: dict[int, str] = {}
+        self._emit_note_event: Callable[[NoteEvent, str], None] | None = None
         self._clear_leds: Callable[[], None] | None = None
 
     def play_song(
@@ -31,8 +32,10 @@ class PlaybackService:
         midi_path: Path,
         relative_path: str,
         display_title: str,
-        emit_note_event: Callable[[NoteEvent], None],
+        emit_note_event: Callable[[NoteEvent, str], None],
         clear_leds: Callable[[], None],
+        hand_mode: str,
+        hand_config: SongHandConfig,
     ) -> dict:
         """Load and play one song from the beginning in a background thread."""
 
@@ -41,6 +44,8 @@ class PlaybackService:
                 return self.state.to_dict()
 
         song = self.midi_loader.load(midi_path, relative_path, display_title)
+        tagged_events = self._apply_hand_tags(song.events, hand_config)
+        filtered_events = self._filter_events_for_mode(tagged_events, hand_mode)
         midi_output_enabled = self._open_midi_output()
 
         with self._lock:
@@ -56,9 +61,21 @@ class PlaybackService:
                 elapsed_seconds=0.0,
                 active_notes=[],
                 midi_output_enabled=midi_output_enabled,
+                hand_mode=hand_mode,
                 error=None,
             )
-            self._thread = threading.Thread(target=self._run_song, args=(song,), daemon=True)
+            self._thread = threading.Thread(
+                target=self._run_song,
+                args=(
+                    LoadedMidiSong(
+                        relative_path=song.relative_path,
+                        display_title=song.display_title,
+                        duration_seconds=song.duration_seconds,
+                        events=filtered_events,
+                    ),
+                ),
+                daemon=True,
+            )
             self._thread.start()
             return self.state.to_dict()
 
@@ -109,7 +126,7 @@ class PlaybackService:
                     time.sleep(0.002)
                 if self._stop_event.is_set():
                     break
-                self._emit_event(timed_event.event)
+                self._emit_event(timed_event)
                 with self._lock:
                     self.state.elapsed_seconds = min(timed_event.time_seconds, song.duration_seconds)
                     self.state.active_notes = sorted(self._active_notes)
@@ -119,16 +136,52 @@ class PlaybackService:
         finally:
             self._finish_playback(stopped_early=self._stop_event.is_set())
 
-    def _emit_event(self, event: NoteEvent) -> None:
+    def _event_matches_hand(self, timed_event: TimedMidiEvent, hand_config: SongHandConfig, hand_name: str) -> bool:
+        """Return whether one event matches the saved track/channel mapping for a hand."""
+
+        track_values = getattr(hand_config, f"{hand_name}_hand_tracks")
+        channel_values = getattr(hand_config, f"{hand_name}_hand_channels")
+        return timed_event.track_index in track_values or timed_event.channel in channel_values
+
+    def _apply_hand_tags(self, events: list[TimedMidiEvent], hand_config: SongHandConfig) -> list[TimedMidiEvent]:
+        """Tag each parsed event with the hand it belongs to, if any."""
+
+        tagged: list[TimedMidiEvent] = []
+        for event in events:
+            hand = "unassigned"
+            if self._event_matches_hand(event, hand_config, "left"):
+                hand = "left"
+            elif self._event_matches_hand(event, hand_config, "right"):
+                hand = "right"
+            tagged.append(
+                TimedMidiEvent(
+                    time_seconds=event.time_seconds,
+                    event=event.event,
+                    track_index=event.track_index,
+                    channel=event.channel,
+                    hand=hand,
+                )
+            )
+        return tagged
+
+    def _filter_events_for_mode(self, events: list[TimedMidiEvent], hand_mode: str) -> list[TimedMidiEvent]:
+        """Return the event list that should play for the requested hand mode."""
+
+        if hand_mode == "both":
+            return events
+        return [event for event in events if event.hand == hand_mode]
+
+    def _emit_event(self, timed_event: TimedMidiEvent) -> None:
         """Forward one playback event to the runtime and optional MIDI output."""
 
+        event = timed_event.event
         if event.event_type == "note_on":
-            self._active_notes.add(event.note)
+            self._active_notes[event.note] = timed_event.hand
         elif event.event_type == "note_off":
-            self._active_notes.discard(event.note)
+            self._active_notes.pop(event.note, None)
 
         if self._emit_note_event is not None:
-            self._emit_note_event(event)
+            self._emit_note_event(event, timed_event.hand)
 
         if self.midi_output is not None and self.state.midi_output_enabled:
             try:
@@ -140,8 +193,14 @@ class PlaybackService:
     def _flush_active_notes(self) -> None:
         """Send note-off events for every currently active playback note."""
 
-        for note in sorted(self._active_notes):
-            self._emit_event(NoteEvent.note_off(note, "playback"))
+        for note, hand in sorted(self._active_notes.items()):
+            self._emit_event(
+                TimedMidiEvent(
+                    time_seconds=0.0,
+                    event=NoteEvent.note_off(note, "playback"),
+                    hand=hand,
+                )
+            )
         self._active_notes.clear()
 
     def _finish_playback(self, stopped_early: bool) -> None:

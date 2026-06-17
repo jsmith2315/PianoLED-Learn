@@ -17,6 +17,7 @@ from piano_led.midi.input import MidiInputPort
 from piano_led.midi.output import MidiOutputPort
 from piano_led.services.playback import PlaybackService
 from piano_led.services.state_store import StateStore
+from piano_led.songs.hand_config import SongHandConfig, SongHandConfigStore
 from piano_led.songs.library import SongLibrary
 
 
@@ -33,6 +34,7 @@ class PianoLedRuntime:
         state_store: StateStore | None = None,
         song_library: SongLibrary | None = None,
         midi_output: MidiOutputPort | None = None,
+        song_hand_config_store: SongHandConfigStore | None = None,
     ) -> None:
         self.settings = settings
         self.keymap = keymap
@@ -42,7 +44,9 @@ class PianoLedRuntime:
         self.state_store = state_store or StateStore()
         self.song_library = song_library
         self.midi_output = midi_output
+        self.song_hand_config_store = song_hand_config_store
         self.playback = PlaybackService(midi_output=midi_output)
+        self.playback_hand_mode = "both"
         self.selected_song_path: str | None = None
         self.song_snapshot = {
             "songs": [],
@@ -130,7 +134,7 @@ class PianoLedRuntime:
                 return snapshot
         raise ValueError(f"Unknown song selection: {relative_path}")
 
-    def handle_note_event(self, event: NoteEvent) -> None:
+    def handle_note_event(self, event: NoteEvent, hand: str = "unassigned") -> None:
         """Update LEDs and runtime state for one note event."""
 
         self.last_note_event = {
@@ -138,6 +142,7 @@ class PianoLedRuntime:
             "note": event.note,
             "velocity": event.velocity,
             "source": event.source,
+            "hand": hand,
         }
         if event.source != "playback" and self.playback.get_state()["status"] == "playing":
             self.refresh_state()
@@ -161,7 +166,7 @@ class PianoLedRuntime:
             return
 
         if event.event_type == "note_on":
-            color = self.note_color_for(event.note)
+            color = self.note_color_for(event.note, hand=hand)
             self.led_driver.set_pixel(led_index, color)
             self.active_notes.add(event.note)
         elif event.event_type == "note_off":
@@ -224,9 +229,17 @@ class PianoLedRuntime:
         self.refresh_state()
         return self.get_keymap_state()
 
-    def note_color_for(self, note: int) -> tuple[int, int, int]:
+    def note_color_for(self, note: int, hand: str = "unassigned") -> tuple[int, int, int]:
         """Return the configured note color for one piano note."""
 
+        if hand == "left":
+            if is_black_key(note):
+                return hex_to_rgb(self.settings.led.left_hand_black_key_color)
+            return hex_to_rgb(self.settings.led.left_hand_note_color)
+        if hand == "right":
+            if is_black_key(note):
+                return hex_to_rgb(self.settings.led.right_hand_black_key_color)
+            return hex_to_rgb(self.settings.led.right_hand_note_color)
         if self.settings.led.use_black_key_color and is_black_key(note):
             return hex_to_rgb(self.settings.led.black_key_color)
         return hex_to_rgb(self.settings.led.note_color)
@@ -238,14 +251,90 @@ class PianoLedRuntime:
         self.led_driver.clear()
         self.refresh_state()
 
+    def set_playback_hand_mode(self, hand_mode: str) -> dict:
+        """Set the current requested playback hand mode."""
+
+        if hand_mode not in {"both", "left", "right"}:
+            raise ValueError(f"Unsupported hand mode: {hand_mode}")
+        self.playback_hand_mode = hand_mode
+        self.refresh_state()
+        return self.get_playback_state()
+
+    def _song_midi_path(self, relative_path: str) -> str:
+        """Return the absolute MIDI path for one known song."""
+
+        if self.song_library is None:
+            raise RuntimeError("Song library is not configured.")
+        return str(self.song_library.midi_root / relative_path)
+
+    def get_song_hand_config_state(self, relative_path: str) -> dict:
+        """Return saved hand config plus available tracks and channels for one song."""
+
+        if not relative_path:
+            raise RuntimeError("A song must be selected before loading hand setup.")
+        if self.song_hand_config_store is None:
+            raise RuntimeError("Song hand configuration storage is not configured.")
+        midi_path = self.song_library.midi_root / relative_path if self.song_library is not None else None
+        if midi_path is None:
+            raise RuntimeError("Song library is not configured.")
+        selected_song = next((song for song in self.song_snapshot["songs"] if song["relative_path"] == relative_path), None)
+        if selected_song is None:
+            raise RuntimeError(f"Unknown song selection: {relative_path}")
+        summary = self.playback.midi_loader.summarize(midi_path, relative_path, selected_song["display_title"])
+        config = self.song_hand_config_store.load(relative_path)
+        return {
+            "config": config.to_dict(),
+            "summary": {
+                "relative_path": summary.relative_path,
+                "display_title": summary.display_title,
+                "track_indices": summary.track_indices,
+                "channels": summary.channels,
+            },
+            "invalid": {
+                "left_hand_tracks": [value for value in config.left_hand_tracks if value not in summary.track_indices],
+                "right_hand_tracks": [value for value in config.right_hand_tracks if value not in summary.track_indices],
+                "left_hand_channels": [value for value in config.left_hand_channels if value not in summary.channels],
+                "right_hand_channels": [value for value in config.right_hand_channels if value not in summary.channels],
+            },
+        }
+
+    def save_song_hand_config(
+        self,
+        relative_path: str,
+        left_hand_tracks: list[int],
+        right_hand_tracks: list[int],
+        left_hand_channels: list[int],
+        right_hand_channels: list[int],
+    ) -> dict:
+        """Persist one song's left/right hand assignment and return the new state."""
+
+        if self.song_hand_config_store is None:
+            raise RuntimeError("Song hand configuration storage is not configured.")
+        config = SongHandConfig(
+            relative_path=relative_path,
+            left_hand_tracks=left_hand_tracks,
+            right_hand_tracks=right_hand_tracks,
+            left_hand_channels=left_hand_channels,
+            right_hand_channels=right_hand_channels,
+        )
+        self.song_hand_config_store.save(config)
+        self.refresh_state()
+        return self.get_song_hand_config_state(relative_path)
+
     def start_playback(self) -> dict:
         """Start playback for the currently selected MIDI song."""
 
         selected_song = self.get_selected_song()
         if selected_song is None:
             raise RuntimeError("No song selected. Choose a MIDI file on the Songs page first.")
-        if self.song_library is None:
-            raise RuntimeError("Song library is not configured.")
+        if self.song_library is None or self.song_hand_config_store is None:
+            raise RuntimeError("Song playback dependencies are not configured.")
+
+        hand_config = self.song_hand_config_store.load(selected_song["relative_path"])
+        if self.playback_hand_mode == "left" and not (hand_config.left_hand_tracks or hand_config.left_hand_channels):
+            raise RuntimeError("No left-hand mapping saved for this song yet.")
+        if self.playback_hand_mode == "right" and not (hand_config.right_hand_tracks or hand_config.right_hand_channels):
+            raise RuntimeError("No right-hand mapping saved for this song yet.")
 
         midi_path = self.song_library.midi_root / selected_song["relative_path"]
         payload = self.playback.play_song(
@@ -254,6 +343,8 @@ class PianoLedRuntime:
             display_title=selected_song["display_title"],
             emit_note_event=self.handle_note_event,
             clear_leds=self.clear_leds,
+            hand_mode=self.playback_hand_mode,
+            hand_config=hand_config,
         )
         self.refresh_state()
         return payload
