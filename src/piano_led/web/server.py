@@ -468,6 +468,7 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
     """Build the practice page with the current selection visible on first load."""
 
     selection_payload = runtime.get_song_selection_state()
+    playback_payload = runtime.get_playback_state()
     if not selection_payload["songs"]:
         empty_state = "No MIDI files found in data/songs/midi yet."
         empty_hidden = ""
@@ -483,6 +484,7 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
         empty_hidden = " hidden"
         output_hidden = ""
         output_text = html.escape(json.dumps(selection_payload, indent=2))
+    playback_text = html.escape(json.dumps(playback_payload, indent=2))
 
     return """<!doctype html>
 <html>
@@ -503,11 +505,17 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
     </nav>
     <div class="card">
       <h1>Learning Mode</h1>
-      <p>This page will host practice playback next. For now, it reads the shared song selection from the runtime.</p>
+      <p>This page plays the currently selected MIDI file from the beginning and shows live playback state.</p>
       <section class="panel">
         <h2>Selected Song</h2>
 """ + '<p id="practice-empty-state"' + empty_hidden + ">" + html.escape(empty_state) + "</p>" + """
 """ + '<pre id="selected-song-output"' + output_hidden + ">" + output_text + "</pre>" + """
+      </section>
+      <section class="panel">
+        <h2>Playback</h2>
+        <button onclick="playSelectedSong()">Play Selected Song</button>
+        <button onclick="stopPlayback()">Stop</button>
+        <pre id="playback-output">""" + playback_text + """</pre>
       </section>
     </div>
     <script>
@@ -518,6 +526,7 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
 
       async function refreshPractice() {
         const selectionPayload = await fetchJson('/api/song-selection');
+        const playbackPayload = await fetchJson('/api/playback');
         const emptyState = document.getElementById('practice-empty-state');
         const output = document.getElementById('selected-song-output');
         if (!selectionPayload.songs.length) {
@@ -525,22 +534,43 @@ def _practice_html(runtime: PianoLedRuntime) -> str:
           emptyState.textContent = 'No MIDI files found in data/songs/midi yet.';
           output.hidden = true;
           output.textContent = '';
-          return;
-        }
-        if (!selectionPayload.selected_song) {
+        } else if (!selectionPayload.selected_song) {
           emptyState.hidden = false;
           emptyState.textContent = 'No song selected yet. Choose a MIDI file on the Songs page to begin practicing.';
           output.hidden = true;
           output.textContent = '';
-          return;
+        } else {
+          emptyState.hidden = true;
+          output.hidden = false;
+          output.textContent = JSON.stringify(selectionPayload, null, 2);
         }
-        emptyState.hidden = true;
-        output.hidden = false;
-        output.textContent = JSON.stringify(selectionPayload, null, 2);
+        document.getElementById('playback-output').textContent = JSON.stringify(playbackPayload, null, 2);
+      }
+
+      async function playSelectedSong() {
+        const payload = await fetchJson('/api/playback/play', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: '{}'
+        });
+        document.getElementById('playback-output').textContent = JSON.stringify(payload, null, 2);
+        if (!payload.error) {
+          await refreshPractice();
+        }
+      }
+
+      async function stopPlayback() {
+        const payload = await fetchJson('/api/playback/stop', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: '{}'
+        });
+        document.getElementById('playback-output').textContent = JSON.stringify(payload, null, 2);
+        await refreshPractice();
       }
 
       refreshPractice();
-      setInterval(refreshPractice, 1000);
+      setInterval(refreshPractice, 500);
     </script>
   </body>
 </html>
@@ -650,6 +680,18 @@ def create_web_app(runtime: PianoLedRuntime):
             except ValueError as error:
                 return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
             return _json_response(start_response, payload)
+
+        if method == "GET" and path == "/api/playback":
+            return _json_response(start_response, runtime.get_playback_state())
+
+        if method == "POST" and path == "/api/playback/play":
+            try:
+                return _json_response(start_response, runtime.start_playback())
+            except RuntimeError as error:
+                return _json_response(start_response, {"error": str(error)}, status="400 Bad Request")
+
+        if method == "POST" and path == "/api/playback/stop":
+            return _json_response(start_response, runtime.stop_playback())
 
         if method == "GET" and path == "/api/settings":
             return _json_response(start_response, runtime.settings.to_dict())
