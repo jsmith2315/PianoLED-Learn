@@ -1,4 +1,4 @@
-"""Long-lived runtime behavior for note lighting, calibration, and state."""
+"""Long-lived runtime behavior for note lighting, calibration, playback, and state."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from piano_led.leds.animations import chase_step
 from piano_led.leds.driver_base import LedDriver
 from piano_led.leds.key_mapper import KeyMapper
 from piano_led.midi.input import MidiInputPort
+from piano_led.midi.output import MidiOutputPort
+from piano_led.services.playback import PlaybackService
 from piano_led.services.state_store import StateStore
 from piano_led.songs.library import SongLibrary
 
@@ -30,6 +32,7 @@ class PianoLedRuntime:
         keymap_store: KeymapStore | None = None,
         state_store: StateStore | None = None,
         song_library: SongLibrary | None = None,
+        midi_output: MidiOutputPort | None = None,
     ) -> None:
         self.settings = settings
         self.keymap = keymap
@@ -38,6 +41,8 @@ class PianoLedRuntime:
         self.keymap_store = keymap_store
         self.state_store = state_store or StateStore()
         self.song_library = song_library
+        self.midi_output = midi_output
+        self.playback = PlaybackService(midi_output=midi_output)
         self.selected_song_path: str | None = None
         self.song_snapshot = {
             "songs": [],
@@ -126,12 +131,18 @@ class PianoLedRuntime:
         raise ValueError(f"Unknown song selection: {relative_path}")
 
     def handle_note_event(self, event: NoteEvent) -> None:
+        """Update LEDs and runtime state for one note event."""
+
         self.last_note_event = {
             "event_type": event.event_type,
             "note": event.note,
             "velocity": event.velocity,
             "source": event.source,
         }
+        if event.source != "playback" and self.playback.get_state()["status"] == "playing":
+            self.refresh_state()
+            return
+
         if event.event_type == "note_on" and self.calibration_session is not None and self.awaiting_calibration_note:
             self.capture_calibration_note(event.note)
             return
@@ -214,14 +225,51 @@ class PianoLedRuntime:
         return self.get_keymap_state()
 
     def note_color_for(self, note: int) -> tuple[int, int, int]:
+        """Return the configured note color for one piano note."""
+
         if self.settings.led.use_black_key_color and is_black_key(note):
             return hex_to_rgb(self.settings.led.black_key_color)
         return hex_to_rgb(self.settings.led.note_color)
 
     def clear_leds(self) -> None:
+        """Clear the strip and forget any active LED note state."""
+
         self.active_notes.clear()
         self.led_driver.clear()
         self.refresh_state()
+
+    def start_playback(self) -> dict:
+        """Start playback for the currently selected MIDI song."""
+
+        selected_song = self.get_selected_song()
+        if selected_song is None:
+            raise RuntimeError("No song selected. Choose a MIDI file on the Songs page first.")
+        if self.song_library is None:
+            raise RuntimeError("Song library is not configured.")
+
+        midi_path = self.song_library.midi_root / selected_song["relative_path"]
+        payload = self.playback.play_song(
+            midi_path=midi_path,
+            relative_path=selected_song["relative_path"],
+            display_title=selected_song["display_title"],
+            emit_note_event=self.handle_note_event,
+            clear_leds=self.clear_leds,
+        )
+        self.refresh_state()
+        return payload
+
+    def stop_playback(self) -> dict:
+        """Stop active playback and return the resulting playback state."""
+
+        payload = self.playback.stop()
+        self.refresh_state()
+        return payload
+
+    def get_playback_state(self) -> dict:
+        """Return the current playback state for the API and UI."""
+
+        self.refresh_state()
+        return self.playback.get_state()
 
     def attach_midi_input(self, midi_input: MidiInputPort) -> None:
         self.midi_input = midi_input
@@ -385,6 +433,8 @@ class PianoLedRuntime:
         return self.calibration_session.to_dict()
 
     def refresh_state(self) -> None:
+        """Publish the latest runtime snapshot for the web layer."""
+
         calibration = self.calibration_session.to_dict() if self.calibration_session else None
         self.state_store.update(
             settings=self.settings.to_dict(),
@@ -395,6 +445,7 @@ class PianoLedRuntime:
             songs=self.song_snapshot["songs"],
             selected_song_path=self.song_snapshot["selected_song_path"],
             selected_song=self.song_snapshot["selected_song"],
+            playback=self.playback.get_state(),
         )
 
     def get_state(self) -> dict:

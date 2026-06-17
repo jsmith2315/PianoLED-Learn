@@ -79,6 +79,7 @@ def build_application(project_root: Path | None = None, initialize_leds: bool = 
         keymap_store=keymap_store,
         state_store=state_store,
         song_library=song_library,
+        midi_output=midi_output,
     )
     runtime.attach_midi_input(midi_input)
     return Application(
