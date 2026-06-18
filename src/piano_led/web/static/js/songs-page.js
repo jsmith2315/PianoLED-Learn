@@ -1,5 +1,5 @@
-document.addEventListener('alpine:init', () => {
-  Alpine.data('songsPage', () => ({
+window.songsPage = function songsPage() {
+  return {
     songs: [],
     selectionState: null,
     selectedSongPath: '',
@@ -221,5 +221,5 @@ document.addEventListener('alpine:init', () => {
       }
       return 'status-idle';
     },
-  }));
-});
+  };
+};
