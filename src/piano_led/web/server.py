@@ -463,6 +463,41 @@ SONGS_HTML = """<!doctype html>
           .map((element) => Number(element.value));
       }
 
+      function arraysEqual(leftValues, rightValues) {
+        if (leftValues.length !== rightValues.length) {
+          return false;
+        }
+        const leftSorted = [...leftValues].sort((a, b) => a - b);
+        const rightSorted = [...rightValues].sort((a, b) => a - b);
+        for (let index = 0; index < leftSorted.length; index += 1) {
+          if (leftSorted[index] !== rightSorted[index]) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function currentHandSetupSelections() {
+        return {
+          left_hand_tracks: collectCheckedValues('left_track'),
+          right_hand_tracks: collectCheckedValues('right_track'),
+          left_hand_channels: collectCheckedValues('left_channel'),
+          right_hand_channels: collectCheckedValues('right_channel')
+        };
+      }
+
+      function handSetupMatchesConfig(selections, config) {
+        return (
+          arraysEqual(selections.left_hand_tracks, config.left_hand_tracks || []) &&
+          arraysEqual(selections.right_hand_tracks, config.right_hand_tracks || []) &&
+          arraysEqual(selections.left_hand_channels, config.left_hand_channels || []) &&
+          arraysEqual(selections.right_hand_channels, config.right_hand_channels || [])
+        );
+      }
+
+      let renderedHandSetupPath = '';
+      let handSetupDirty = false;
+
       async function refreshHandSetup(selectedPath) {
         const emptyState = document.getElementById('hand-setup-empty');
         const editor = document.getElementById('hand-setup-editor');
@@ -471,6 +506,8 @@ SONGS_HTML = """<!doctype html>
           emptyState.hidden = false;
           editor.hidden = true;
           output.textContent = 'Select a song to configure left and right hand sources.';
+          renderedHandSetupPath = '';
+          handSetupDirty = false;
           return;
         }
         const payload = await fetchJson('/api/song-hand-config?relative_path=' + encodeURIComponent(selectedPath));
@@ -478,14 +515,26 @@ SONGS_HTML = """<!doctype html>
           emptyState.hidden = false;
           editor.hidden = true;
           output.textContent = JSON.stringify(payload, null, 2);
+          renderedHandSetupPath = '';
+          handSetupDirty = false;
           return;
         }
+        const sameSongAsCurrentEditor = renderedHandSetupPath === selectedPath;
+        const localSelections = sameSongAsCurrentEditor ? currentHandSetupSelections() : null;
+        const shouldPreserveLocalSelections = sameSongAsCurrentEditor && handSetupDirty && localSelections !== null;
+        const selectedConfig = shouldPreserveLocalSelections
+          ? localSelections
+          : payload.config;
         emptyState.hidden = true;
         editor.hidden = false;
-        renderCheckboxGroup('left-track-options', payload.summary.track_indices, payload.config.left_hand_tracks, 'left_track');
-        renderCheckboxGroup('right-track-options', payload.summary.track_indices, payload.config.right_hand_tracks, 'right_track');
-        renderCheckboxGroup('left-channel-options', payload.summary.channels, payload.config.left_hand_channels, 'left_channel');
-        renderCheckboxGroup('right-channel-options', payload.summary.channels, payload.config.right_hand_channels, 'right_channel');
+        renderCheckboxGroup('left-track-options', payload.summary.track_indices, selectedConfig.left_hand_tracks || [], 'left_track');
+        renderCheckboxGroup('right-track-options', payload.summary.track_indices, selectedConfig.right_hand_tracks || [], 'right_track');
+        renderCheckboxGroup('left-channel-options', payload.summary.channels, selectedConfig.left_hand_channels || [], 'left_channel');
+        renderCheckboxGroup('right-channel-options', payload.summary.channels, selectedConfig.right_hand_channels || [], 'right_channel');
+        renderedHandSetupPath = selectedPath;
+        handSetupDirty = shouldPreserveLocalSelections
+          ? !handSetupMatchesConfig(selectedConfig, payload.config)
+          : false;
         output.textContent = JSON.stringify(payload, null, 2);
       }
 
@@ -537,7 +586,7 @@ SONGS_HTML = """<!doctype html>
         } else {
           output.textContent = JSON.stringify(selectionPayload, null, 2);
         }
-        await refreshHandSetup(selectionPayload.selected_song_path || effectiveSelectedPath || '');
+        await refreshHandSetup(effectiveSelectedPath || '');
       }
 
       async function saveSongSelection() {
@@ -563,12 +612,18 @@ SONGS_HTML = """<!doctype html>
           })
         });
         document.getElementById('hand-setup-output').textContent = JSON.stringify(payload, null, 2);
+        handSetupDirty = false;
         await refreshHandSetup(relativePath);
       }
 
       document.getElementById('song-select').addEventListener('change', async () => {
         updateSongSelectionButton();
         await refreshHandSetup(document.getElementById('song-select').value);
+      });
+      document.getElementById('hand-setup-editor').addEventListener('change', (event) => {
+        if (event.target.matches('input[type="checkbox"][data-group]')) {
+          handSetupDirty = true;
+        }
       });
       refreshSongs();
       setInterval(refreshSongs, 1000);
