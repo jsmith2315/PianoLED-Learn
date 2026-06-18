@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="rounded-3xl bg-white/85 p-8 shadow-xl shadow-slate-900/10 backdrop-blur">
+    <p class="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">Pi-hosted piano workflow</p>
+    <h1 class="mb-4 text-4xl font-bold text-slate-900">Piano LED Learn</h1>
+    <p class="max-w-3xl text-base leading-7 text-slate-700">
+      This web shell is the first FastAPI migration step. It keeps the runtime logic in Python while preparing
+      the UI for Alpine-powered forms and cleaner page templates.
+    </p>
+  </section>
+
+  <section class="mt-6 grid gap-4 md:grid-cols-2">
+    <article class="rounded-2xl bg-white/75 p-6 shadow-lg shadow-slate-900/5">
+      <h2 class="mb-3 text-xl font-semibold text-slate-900">Runtime Summary</h2>
+      <pre class="overflow-auto rounded-2xl bg-slate-900 p-4 text-sm text-slate-100">{{ runtime_summary }}</pre>
+    </article>
+    <article class="rounded-2xl bg-white/75 p-6 shadow-lg shadow-slate-900/5">
+      <h2 class="mb-3 text-xl font-semibold text-slate-900">Next Up</h2>
+      <p class="text-slate-700">
+        The next migration slice brings the <code>/songs</code> page onto FastAPI + Alpine so dropdowns and
+        checkbox groups can keep local UI state without fighting the backend refresh loop.
+      </p>
+    </article>
+  </section>
+{% endblock %}

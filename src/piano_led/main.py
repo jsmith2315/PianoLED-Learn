@@ -6,12 +6,13 @@ import argparse
 from pathlib import Path
 import time
 import json
-from wsgiref.simple_server import make_server
+import threading
 
 from piano_led.app import build_application
-from piano_led.web.server import create_web_app
+from piano_led.web.app import create_fastapi_app
 from piano_led.midi.input import MidoMidiInputPort, list_mido_input_ports
 from piano_led.midi.output import list_mido_output_ports
+import uvicorn
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,6 +63,26 @@ def run_midi_loop(midi_input: MidoMidiInputPort, seconds: float | None) -> int:
     return 0
 
 
+def run_fastapi_server(host: str, port: int, runtime, seconds: float | None) -> int:
+    """Run the FastAPI server, optionally stopping after a bounded duration."""
+
+    app = create_fastapi_app(runtime)
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    server = uvicorn.Server(config)
+
+    timer: threading.Timer | None = None
+    if seconds is not None:
+        timer = threading.Timer(max(0.0, seconds), lambda: setattr(server, "should_exit", True))
+        timer.daemon = True
+        timer.start()
+    try:
+        server.run()
+    finally:
+        if timer is not None:
+            timer.cancel()
+    return 0 if not server.started or not server.force_exit else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the requested CLI command and return a process exit code."""
 
@@ -101,20 +122,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Listening to MIDI input: {midi_input.port_name}")
             else:
                 print("Configured MIDI backend is fake; web server will run without live MIDI input.")
-        app = create_web_app(application.runtime)
-        server = make_server(args.host, args.port, app)
-        server.timeout = 0.5
         print(f"Serving Piano LED Learn at http://{args.host}:{args.port}")
-        start = time.monotonic()
         try:
-            while True:
-                server.handle_request()
-                if args.seconds is not None and (time.monotonic() - start) >= max(0.0, args.seconds):
-                    break
+            return run_fastapi_server(args.host, args.port, application.runtime, args.seconds)
         except KeyboardInterrupt:
             print("Stopped web server.")
-        finally:
-            server.server_close()
         return 0
 
     if args.command == "led-chase":

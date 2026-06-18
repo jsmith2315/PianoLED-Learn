@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title or "Piano LED Learn" }}</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script defer src="/static/js/alpine.min.js"></script>
+  </head>
+  <body class="min-h-screen">
+    <div class="mx-auto max-w-6xl px-4 py-8">
+      <nav class="mb-6 flex flex-wrap gap-3 text-sm font-semibold text-slate-800">
+        <a class="rounded-full bg-white/80 px-4 py-2 shadow-sm" href="/">Home</a>
+        <a class="rounded-full bg-white/60 px-4 py-2 shadow-sm" href="/settings">Settings</a>
+        <a class="rounded-full bg-white/60 px-4 py-2 shadow-sm" href="/keymap">Keymap</a>
+        <a class="rounded-full bg-white/60 px-4 py-2 shadow-sm" href="/songs">Songs</a>
+        <a class="rounded-full bg-white/60 px-4 py-2 shadow-sm" href="/practice">Practice</a>
+      </nav>
+      {% block content %}{% endblock %}
+    </div>
+  </body>
+</html>
