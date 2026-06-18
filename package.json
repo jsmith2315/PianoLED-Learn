@@ -1,0 +1,10 @@
+{
+  "name": "piano-led-web",
+  "private": true,
+  "scripts": {
+    "build-css": "tailwindcss -i ./src/piano_led/web/static/css/input.css -o ./src/piano_led/web/static/css/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

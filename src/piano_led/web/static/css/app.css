@@ -1,0 +1,8 @@
+body {
+  background: linear-gradient(120deg, #f4efe6, #dfe9f3);
+  color: #1f2a37;
+}
+
+[x-cloak] {
+  display: none !important;
+}

@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 venv/
 *.log
+node_modules/
+.npm-cache/
 
 # Local editor and OS files
 .DS_Store
