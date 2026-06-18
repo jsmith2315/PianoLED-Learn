@@ -20,8 +20,9 @@ def create_page_router(runtime: PianoLedRuntime) -> APIRouter:
     @router.get("/", response_class=HTMLResponse)
     def home(request: Request) -> HTMLResponse:
         return templates.TemplateResponse(
-            "home.html",
-            {
+            request=request,
+            name="home.html",
+            context={
                 "request": request,
                 "page_title": "Piano LED Learn",
                 "runtime_summary": runtime.describe(),
@@ -31,8 +32,9 @@ def create_page_router(runtime: PianoLedRuntime) -> APIRouter:
     @router.get("/songs", response_class=HTMLResponse)
     def songs(request: Request) -> HTMLResponse:
         return templates.TemplateResponse(
-            "songs.html",
-            {
+            request=request,
+            name="songs.html",
+            context={
                 "request": request,
                 "page_title": "Songs | Piano LED Learn",
             },
