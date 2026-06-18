@@ -1,4 +1,4 @@
-"""Minimal WSGI app for the tablet/browser control surface."""
+"""Legacy WSGI UI kept as a compatibility fallback during FastAPI migration."""
 
 from __future__ import annotations
 
@@ -807,8 +807,13 @@ def _download_response(start_response, payload: dict, filename: str):
     return [body]
 
 
-def create_web_app(runtime: PianoLedRuntime):
-    """Create the WSGI application bound to a specific runtime instance."""
+def create_web_app(runtime: PianoLedRuntime, enable_songs_page: bool = True):
+    """Create the legacy WSGI application bound to a runtime instance.
+
+    ``enable_songs_page`` is used by the FastAPI migration layer so the new
+    template-driven ``/songs`` page is the only active songs UI while the
+    remaining pages still fall back to this legacy app.
+    """
     def application(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -830,7 +835,7 @@ def create_web_app(runtime: PianoLedRuntime):
         if method == "GET" and path == "/settings":
             return _html_response(start_response, SETTINGS_HTML)
 
-        if method == "GET" and path == "/songs":
+        if enable_songs_page and method == "GET" and path == "/songs":
             return _html_response(start_response, SONGS_HTML)
 
         if method == "GET" and path == "/practice":
