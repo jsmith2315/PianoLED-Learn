@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section x-data="songsPage()" x-init="init()" x-cloak class="space-y-6">
+    <div class="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <section class="glass-card p-6">
+        <p class="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">Song Setup</p>
+        <h1 class="mb-2 text-3xl font-bold text-slate-900">Songs</h1>
+        <p class="mb-5 max-w-2xl text-sm leading-6 text-slate-700">
+          Choose a MIDI file, save it as the active song, and map which tracks and channels belong to the left and
+          right hands. Local checkbox changes stay in the browser until you save them.
+        </p>
+
+        <label class="mb-2 block text-sm font-semibold text-slate-800" for="song-select">Song</label>
+        <select
+          id="song-select"
+          x-model="selectedSongPath"
+          @change="handleSongSelectionChanged()"
+          class="mb-4 w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-slate-900 shadow-sm"
+        >
+          <option value="" x-show="songs.length === 0">No MIDI files found</option>
+          <option value="" x-show="songs.length > 0">Choose a song...</option>
+          <template x-for="song in songs" :key="song.relative_path">
+            <option :value="song.relative_path" x-text="song.display_title"></option>
+          </template>
+        </select>
+
+        <div class="flex flex-wrap gap-3">
+          <button
+            type="button"
+            class="rounded-full bg-sky-800 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-950/20 transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            @click="saveSongSelection()"
+            :disabled="!selectedSongPath || !isSongDirty || isLoading"
+          >
+            Save Selected Song
+          </button>
+          <span class="status-pill" :class="statusToneClass" x-text="statusMessage || 'Idle and ready.'"></span>
+        </div>
+      </section>
+
+      <aside class="glass-card p-6">
+        <h2 class="mb-3 text-xl font-semibold text-slate-900">Saved Runtime State</h2>
+        <p class="mb-4 text-sm leading-6 text-slate-700">
+          This panel shows what the backend currently has saved. Use it to check whether the browser has unsaved
+          changes or whether the runtime has already accepted them.
+        </p>
+        <pre class="rounded-2xl bg-slate-900 p-4 text-sm text-slate-100" x-text="prettySelectionState"></pre>
+      </aside>
+    </div>
+
+    <section class="glass-card p-6">
+      <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-rose-700">Hand Setup</p>
+          <h2 class="text-2xl font-semibold text-slate-900">Track and Channel Assignment</h2>
+          <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+            Pick the tracks and channels that belong to each hand for the currently shown song. You can inspect a
+            different song in the dropdown before saving it as the active song.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="rounded-full bg-rose-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-950/20 transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+          @click="saveHandSetup()"
+          :disabled="!activeSongPath || !isHandSetupDirty || isLoading"
+        >
+          Save Hand Setup
+        </button>
+      </div>
+
+      <template x-if="!activeSongPath">
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-6 text-sm text-slate-600">
+          Select a song to load its hand setup options.
+        </div>
+      </template>
+
+      <template x-if="activeSongPath">
+        <div class="space-y-6">
+          <div class="grid gap-6 lg:grid-cols-2">
+            <section class="rounded-2xl bg-white/70 p-5 shadow-sm">
+              <h3 class="mb-3 text-lg font-semibold text-slate-900">Left Hand</h3>
+              <label class="mb-2 block text-sm font-semibold text-slate-700">Tracks</label>
+              <div class="check-grid">
+                <template x-for="track in handSummary.track_indices" :key="'left-track-' + track">
+                  <label class="checkbox-row">
+                    <input type="checkbox" :value="track" x-model="localConfig.left_hand_tracks" @change="markHandConfigDirty()">
+                    <span x-text="'Track ' + track"></span>
+                  </label>
+                </template>
+                <p class="text-sm text-slate-500" x-show="handSummary.track_indices.length === 0">No tracks detected.</p>
+              </div>
+
+              <label class="mb-2 mt-5 block text-sm font-semibold text-slate-700">Channels</label>
+              <div class="check-grid">
+                <template x-for="channel in handSummary.channels" :key="'left-channel-' + channel">
+                  <label class="checkbox-row">
+                    <input type="checkbox" :value="channel" x-model="localConfig.left_hand_channels" @change="markHandConfigDirty()">
+                    <span x-text="'Channel ' + channel"></span>
+                  </label>
+                </template>
+                <p class="text-sm text-slate-500" x-show="handSummary.channels.length === 0">No channels detected.</p>
+              </div>
+            </section>
+
+            <section class="rounded-2xl bg-white/70 p-5 shadow-sm">
+              <h3 class="mb-3 text-lg font-semibold text-slate-900">Right Hand</h3>
+              <label class="mb-2 block text-sm font-semibold text-slate-700">Tracks</label>
+              <div class="check-grid">
+                <template x-for="track in handSummary.track_indices" :key="'right-track-' + track">
+                  <label class="checkbox-row">
+                    <input type="checkbox" :value="track" x-model="localConfig.right_hand_tracks" @change="markHandConfigDirty()">
+                    <span x-text="'Track ' + track"></span>
+                  </label>
+                </template>
+                <p class="text-sm text-slate-500" x-show="handSummary.track_indices.length === 0">No tracks detected.</p>
+              </div>
+
+              <label class="mb-2 mt-5 block text-sm font-semibold text-slate-700">Channels</label>
+              <div class="check-grid">
+                <template x-for="channel in handSummary.channels" :key="'right-channel-' + channel">
+                  <label class="checkbox-row">
+                    <input type="checkbox" :value="channel" x-model="localConfig.right_hand_channels" @change="markHandConfigDirty()">
+                    <span x-text="'Channel ' + channel"></span>
+                  </label>
+                </template>
+                <p class="text-sm text-slate-500" x-show="handSummary.channels.length === 0">No channels detected.</p>
+              </div>
+            </section>
+          </div>
+
+          <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
+            <section class="rounded-2xl bg-slate-900 p-5 text-sm text-slate-100">
+              <h3 class="mb-3 text-lg font-semibold text-white">Saved Hand Config</h3>
+              <pre x-text="prettyHandState"></pre>
+            </section>
+            <section class="rounded-2xl bg-white/70 p-5 shadow-sm">
+              <h3 class="mb-3 text-lg font-semibold text-slate-900">Warnings</h3>
+              <template x-if="hasInvalidMappings">
+                <pre class="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900" x-text="prettyInvalidState"></pre>
+              </template>
+              <p class="text-sm text-slate-600" x-show="!hasInvalidMappings">
+                No invalid saved tracks or channels were detected for this song.
+              </p>
+            </section>
+          </div>
+        </div>
+      </template>
+    </section>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/songs-page.js"></script>
+{% endblock %}
