@@ -146,7 +146,7 @@ window.settingsPage = function settingsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: '{}',
         });
-        this.setStatus('Chase step sent to the strip.', 'success');
+        this.setStatus('Chase test ran on the strip.', 'success');
         await this.refreshRuntimeState();
       } catch (error) {
         this.setStatus(error.message, 'error');

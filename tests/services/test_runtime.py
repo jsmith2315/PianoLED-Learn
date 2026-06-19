@@ -81,6 +81,18 @@ class PianoLedRuntimeTest(unittest.TestCase):
 
         self.assertEqual(driver.pixels, [(0, 0, 0)] * 4)
 
+    def test_runtime_can_run_a_multi_step_chase_test_and_clear_afterward(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=5))
+        driver = FakeLedDriver(total_leds=5)
+        runtime = PianoLedRuntime(settings=settings, keymap=Keymap(note_to_led={60: 1}), led_driver=driver)
+
+        payload = runtime.run_chase_test(steps=4, delay_ms=0.0, clear_after=True)
+
+        self.assertEqual(payload["steps"], 4)
+        self.assertEqual(payload["chase_index"], 4)
+        self.assertEqual(driver.pixels, [(0, 0, 0)] * 5)
+        self.assertGreaterEqual(driver.show_count, 5)
+
     def test_runtime_can_subscribe_to_midi_input(self) -> None:
         settings = AppSettings(led=LedSettings(total_leds=4))
         driver = FakeLedDriver(total_leds=4)

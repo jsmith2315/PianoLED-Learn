@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from piano_led.config.settings import AppSettings, SettingsStore
 from piano_led.core.colors import hex_to_rgb
 from piano_led.core.models import NoteEvent
@@ -440,6 +442,25 @@ class PianoLedRuntime:
         self.led_driver.show()
         self.chase_index = (self.chase_index + 1) % self.settings.led.total_leds
         self.refresh_state()
+
+    def run_chase_test(self, steps: int = 10, delay_ms: float = 75.0, clear_after: bool = True) -> dict:
+        """Run a short visible chase animation for UI-triggered LED testing."""
+
+        for _ in range(max(0, steps)):
+            self.handle_chase_step()
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+
+        if clear_after:
+            self.clear_leds()
+
+        self.refresh_state()
+        return {
+            "ok": True,
+            "steps": max(0, steps),
+            "chase_index": self.chase_index,
+            "cleared": clear_after,
+        }
 
     def generate_keymap(self, total_leds: int | None = None, first_led: int | None = None, direction: str | None = None) -> dict:
         self.settings.led.total_leds = total_leds or self.settings.led.total_leds

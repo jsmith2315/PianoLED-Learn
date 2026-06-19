@@ -116,8 +116,7 @@ def create_api_router(application: Application) -> APIRouter:
 
     @router.post("/api/led/chase")
     def led_chase() -> dict[str, Any]:
-        runtime.handle_chase_step()
-        return {"ok": True, "chase_index": runtime.chase_index}
+        return runtime.run_chase_test()
 
     @router.get("/api/songs")
     def list_songs() -> dict[str, list[dict[str, Any]]]:
