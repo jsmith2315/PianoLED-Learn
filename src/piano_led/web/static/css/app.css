@@ -19,6 +19,11 @@ pre {
   word-break: break-word;
 }
 
+.status-panel {
+  max-height: 28rem;
+  overflow: auto;
+}
+
 .glass-card {
   border-radius: 1.75rem;
   background: rgba(255, 255, 255, 0.78);

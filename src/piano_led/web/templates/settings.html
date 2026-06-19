@@ -65,7 +65,7 @@
           This reflects the runtime currently running in memory, including the live MIDI backend and the last note event
           seen by the system.
         </p>
-        <pre class="rounded-2xl bg-slate-900 p-4 text-sm text-slate-100" x-text="prettyRuntimeState"></pre>
+        <pre class="status-panel rounded-2xl bg-slate-900 p-4 text-sm text-slate-100" x-text="prettyRuntimeState"></pre>
       </aside>
     </div>
 
@@ -92,7 +92,7 @@
         <div class="grid gap-4 md:grid-cols-2">
           <label class="space-y-2 text-sm font-semibold text-slate-800">
             <span>Input Port</span>
-            <select x-model="draftMidi.input_port_name" class="select-input">
+            <select x-model="draftMidi.input_port_name" @focus="midiSelectFocused = true" @blur="midiSelectFocused = false" class="select-input">
               <option value="">No input selected</option>
               <template x-for="port in midiPorts.input_ports" :key="'in-' + port">
                 <option :value="port" x-text="port"></option>
@@ -101,7 +101,7 @@
           </label>
           <label class="space-y-2 text-sm font-semibold text-slate-800">
             <span>Output Port</span>
-            <select x-model="draftMidi.output_port_name" class="select-input">
+            <select x-model="draftMidi.output_port_name" @focus="midiSelectFocused = true" @blur="midiSelectFocused = false" class="select-input">
               <option value="">No output selected</option>
               <template x-for="port in midiPorts.output_ports" :key="'out-' + port">
                 <option :value="port" x-text="port"></option>
@@ -144,7 +144,7 @@
 
         <div class="mt-5 rounded-2xl bg-white/70 p-4 shadow-sm">
           <h3 class="mb-3 text-lg font-semibold text-slate-900">Saved Settings</h3>
-          <pre class="text-sm text-slate-800" x-text="prettySettings"></pre>
+          <pre class="status-panel text-sm text-slate-800" x-text="prettySettings"></pre>
         </div>
       </section>
     </div>

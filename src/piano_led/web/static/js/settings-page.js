@@ -33,11 +33,14 @@ window.settingsPage = function settingsPage() {
     statusMessage: '',
     statusTone: 'idle',
     isLoading: false,
+    midiSelectFocused: false,
     pollHandle: null,
     async init() {
       await this.refreshAll();
       this.pollHandle = window.setInterval(async () => {
-        await this.refreshRuntimeState();
+        if (!this.midiSelectFocused) {
+          await this.refreshRuntimeState();
+        }
       }, 1000);
     },
     async fetchJson(url, options) {
