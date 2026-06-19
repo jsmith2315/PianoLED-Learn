@@ -24,6 +24,10 @@ class RpiWs281xLedDriver(LedDriver):
             self.strip.setPixelColorRGB(index, 0, 0, 0)
         self.strip.show()
 
+    def set_brightness(self, brightness: int) -> None:
+        self.strip.setBrightness(brightness)
+        self.strip.show()
+
 
 def create_rpi_led_driver(settings: AppSettings, ws281x_module=None) -> RpiWs281xLedDriver:
     """Construct and initialize the Pi LED driver from app settings."""

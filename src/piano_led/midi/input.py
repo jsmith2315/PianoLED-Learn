@@ -16,6 +16,16 @@ class MidiInputPort:
     def subscribe(self, listener: Callable[[NoteEvent], None]) -> None:
         self._listeners.append(listener)
 
+    def unsubscribe(self, listener: Callable[[NoteEvent], None]) -> None:
+        """Detach one listener when runtime ownership changes."""
+
+        self._listeners = [registered for registered in self._listeners if registered != listener]
+
+    def close(self) -> None:
+        """Release any system resources held by the input port."""
+
+        return None
+
     def emit(self, event: NoteEvent) -> None:
         for listener in self._listeners:
             listener(event)

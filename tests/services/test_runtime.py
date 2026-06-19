@@ -9,6 +9,7 @@ from piano_led.core.models import NoteEvent
 from piano_led.keymap.models import Keymap
 from piano_led.leds.driver_fake import FakeLedDriver
 from piano_led.midi.input import FakeMidiInputPort
+from piano_led.midi.output import FakeMidiOutputPort
 from piano_led.services.runtime import PianoLedRuntime
 from piano_led.songs.library import SongLibrary
 
@@ -90,6 +91,27 @@ class PianoLedRuntimeTest(unittest.TestCase):
         midi_input.emit(NoteEvent.note_on(note=60, velocity=99, source="midi"))
 
         self.assertEqual(driver.pixels[1], (0, 184, 148))
+
+    def test_runtime_can_replace_live_midi_input_without_leaving_old_subscription_attached(self) -> None:
+        settings = AppSettings(led=LedSettings(total_leds=4))
+        driver = FakeLedDriver(total_leds=4)
+        runtime = PianoLedRuntime(
+            settings=settings,
+            keymap=Keymap(note_to_led={60: 1, 62: 2}),
+            led_driver=driver,
+            midi_output=FakeMidiOutputPort(),
+        )
+        first_input = FakeMidiInputPort()
+        second_input = FakeMidiInputPort()
+
+        runtime.attach_midi_input(first_input)
+        runtime.replace_midi_input(second_input)
+
+        first_input.emit(NoteEvent.note_on(note=60, velocity=99, source="old"))
+        self.assertEqual(driver.pixels[1], (0, 0, 0))
+
+        second_input.emit(NoteEvent.note_on(note=62, velocity=99, source="new"))
+        self.assertEqual(driver.pixels[2], (0, 184, 148))
 
     def test_runtime_can_arm_calibration_and_capture_next_live_key(self) -> None:
         settings = AppSettings(led=LedSettings(total_leds=8))

@@ -18,3 +18,8 @@ class LedDriver(ABC):
     @abstractmethod
     def clear(self) -> None:
         raise NotImplementedError
+
+    def set_brightness(self, brightness: int) -> None:
+        """Apply a strip brightness level when the backend supports it."""
+
+        return None

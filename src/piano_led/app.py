@@ -30,6 +30,61 @@ class Application:
     midi_output: FakeMidiOutputPort | MidoMidiOutputPort
 
 
+def create_midi_input(settings: AppSettings) -> FakeMidiInputPort | MidoMidiInputPort:
+    """Create the configured MIDI input backend from current settings."""
+
+    if settings.midi.backend == "mido" and settings.midi.input_port_name:
+        return MidoMidiInputPort(port_name=settings.midi.input_port_name)
+    return FakeMidiInputPort()
+
+
+def create_midi_output(settings: AppSettings) -> FakeMidiOutputPort | MidoMidiOutputPort:
+    """Create the configured MIDI output backend from current settings."""
+
+    if settings.midi.backend == "mido" and settings.midi.output_port_name:
+        return MidoMidiOutputPort(port_name=settings.midi.output_port_name)
+    return FakeMidiOutputPort()
+
+
+def apply_midi_ports(application: Application, input_port_name: str, output_port_name: str) -> dict:
+    """Swap live MIDI ports, persist them, and return the active selection."""
+
+    settings = application.runtime.settings
+    draft_settings = AppSettings.from_dict(settings.to_dict())
+    draft_settings.midi.backend = "mido"
+    draft_settings.midi.input_port_name = input_port_name.strip()
+    draft_settings.midi.output_port_name = output_port_name.strip()
+
+    midi_input = create_midi_input(draft_settings)
+    midi_output = create_midi_output(draft_settings)
+
+    try:
+        if isinstance(midi_input, MidoMidiInputPort):
+            midi_input.open()
+        if isinstance(midi_output, MidoMidiOutputPort):
+            midi_output.open()
+    except Exception:
+        midi_input.close()
+        midi_output.close()
+        raise
+
+    settings.midi.backend = draft_settings.midi.backend
+    settings.midi.input_port_name = draft_settings.midi.input_port_name
+    settings.midi.output_port_name = draft_settings.midi.output_port_name
+
+    application.runtime.replace_midi_input(midi_input)
+    application.runtime.replace_midi_output(midi_output)
+    application.midi_input = midi_input
+    application.midi_output = midi_output
+    application.settings_store.save(settings)
+    application.runtime.refresh_state()
+    return {
+        "midi_backend": settings.midi.backend,
+        "input_port_name": settings.midi.input_port_name,
+        "output_port_name": settings.midi.output_port_name,
+    }
+
+
 def build_application(project_root: Path | None = None, initialize_leds: bool = True) -> Application:
     """Build the configured runtime and I/O adapters.
 
@@ -61,15 +116,8 @@ def build_application(project_root: Path | None = None, initialize_leds: bool = 
     else:
         led_driver = FakeLedDriver(total_leds=settings.led.total_leds)
 
-    if settings.midi.backend == "mido" and settings.midi.input_port_name:
-        midi_input = MidoMidiInputPort(port_name=settings.midi.input_port_name)
-    else:
-        midi_input = FakeMidiInputPort()
-
-    if settings.midi.backend == "mido" and settings.midi.output_port_name:
-        midi_output = MidoMidiOutputPort(port_name=settings.midi.output_port_name)
-    else:
-        midi_output = FakeMidiOutputPort()
+    midi_input = create_midi_input(settings)
+    midi_output = create_midi_output(settings)
 
     state_store = StateStore()
     song_library = SongLibrary(songs_root)

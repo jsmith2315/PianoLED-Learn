@@ -40,4 +40,15 @@ def create_page_router(runtime: PianoLedRuntime) -> APIRouter:
             },
         )
 
+    @router.get("/settings", response_class=HTMLResponse)
+    def settings(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request=request,
+            name="settings.html",
+            context={
+                "request": request,
+                "page_title": "Settings | Piano LED Learn",
+            },
+        )
+
     return router

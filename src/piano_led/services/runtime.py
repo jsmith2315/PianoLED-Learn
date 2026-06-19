@@ -244,6 +244,40 @@ class PianoLedRuntime:
             return hex_to_rgb(self.settings.led.black_key_color)
         return hex_to_rgb(self.settings.led.note_color)
 
+    def apply_led_settings(self, led_updates: dict) -> dict:
+        """Apply LED-related settings, persist them, and refresh visible output."""
+
+        brightness = led_updates.get("brightness")
+        for key, value in led_updates.items():
+            if hasattr(self.settings.led, key):
+                setattr(self.settings.led, key, value)
+
+        if brightness is not None:
+            self.led_driver.set_brightness(int(brightness))
+
+        if self.full_map_preview_active or (
+            self.calibration_session is not None
+            and self.show_full_keyboard_preview_during_calibration
+            and self.calibration_session.selected_note is None
+        ):
+            self._render_full_keymap_to_strip()
+        elif self.calibration_session is not None and self.calibration_session.selected_note is not None:
+            self.calibration_select_key(self.calibration_session.selected_note)
+            return self.settings.to_dict()
+        elif self.active_notes:
+            active_notes = sorted(self.active_notes)
+            self.led_driver.clear()
+            for note in active_notes:
+                led_index = self.key_mapper.led_for_note(note)
+                if led_index is not None:
+                    self.led_driver.set_pixel(led_index, self.note_color_for(note))
+            self.led_driver.show()
+
+        if self.settings_store is not None:
+            self.settings_store.save(self.settings)
+        self.refresh_state()
+        return self.settings.to_dict()
+
     def clear_leds(self) -> None:
         """Clear the strip and forget any active LED note state."""
 
@@ -369,8 +403,34 @@ class PianoLedRuntime:
         return self.playback.get_state()
 
     def attach_midi_input(self, midi_input: MidiInputPort) -> None:
+        """Attach one live MIDI input to the runtime."""
+
+        self.detach_midi_input()
         self.midi_input = midi_input
         midi_input.subscribe(self.handle_note_event)
+        self.refresh_state()
+
+    def detach_midi_input(self) -> None:
+        """Detach the current live MIDI input, if one is attached."""
+
+        if self.midi_input is not None:
+            self.midi_input.unsubscribe(self.handle_note_event)
+            self.midi_input.close()
+            self.midi_input = None
+        self.refresh_state()
+
+    def replace_midi_input(self, midi_input: MidiInputPort) -> None:
+        """Swap to a new MIDI input without leaving stale subscriptions behind."""
+
+        self.attach_midi_input(midi_input)
+
+    def replace_midi_output(self, midi_output: MidiOutputPort) -> None:
+        """Swap playback output to a new MIDI output port."""
+
+        if self.midi_output is not None:
+            self.midi_output.close()
+        self.midi_output = midi_output
+        self.playback.midi_output = midi_output
         self.refresh_state()
 
     def handle_chase_step(self) -> None:

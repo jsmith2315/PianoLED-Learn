@@ -3,7 +3,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from piano_led.app import build_application
+from piano_led.app import apply_midi_ports, build_application
+from piano_led.config.settings import AppSettings, LedSettings, MidiSettings
 from piano_led.midi.input import FakeMidiInputPort
 from piano_led.midi.output import FakeMidiOutputPort
 from piano_led.leds.driver_fake import FakeLedDriver
@@ -54,3 +55,26 @@ class BuildApplicationTest(unittest.TestCase):
                     }
                 ],
             )
+
+    def test_apply_midi_ports_swaps_runtime_ports_and_persists_names(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            application = build_application(root)
+            application.runtime.settings = AppSettings(
+                led=LedSettings(total_leds=16),
+                midi=MidiSettings(backend="mido", input_port_name="Old In", output_port_name="Old Out"),
+            )
+            new_input = FakeMidiInputPort()
+            new_output = FakeMidiOutputPort()
+
+            with patch("piano_led.app.create_midi_input", return_value=new_input), patch(
+                "piano_led.app.create_midi_output", return_value=new_output
+            ):
+                payload = apply_midi_ports(application, input_port_name="New In", output_port_name="New Out")
+
+        self.assertEqual(payload["input_port_name"], "New In")
+        self.assertEqual(payload["output_port_name"], "New Out")
+        self.assertIs(application.midi_input, new_input)
+        self.assertIs(application.midi_output, new_output)
+        self.assertEqual(application.runtime.settings.midi.input_port_name, "New In")
+        self.assertEqual(application.runtime.settings.midi.output_port_name, "New Out")

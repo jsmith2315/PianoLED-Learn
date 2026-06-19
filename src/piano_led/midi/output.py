@@ -13,6 +13,11 @@ class MidiOutputPort:
     def open(self) -> None:
         return None
 
+    def close(self) -> None:
+        """Release any system resources held by the output port."""
+
+        return None
+
     def send(self, event: NoteEvent) -> None:
         raise NotImplementedError
 

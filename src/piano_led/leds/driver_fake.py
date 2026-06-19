@@ -11,6 +11,7 @@ class FakeLedDriver(LedDriver):
         self.total_leds = total_leds
         self.pixels = [(0, 0, 0)] * total_leds
         self.show_count = 0
+        self.brightness = 255
 
     def set_pixel(self, index: int, color: tuple[int, int, int]) -> None:
         self.pixels[index] = color
@@ -21,3 +22,6 @@ class FakeLedDriver(LedDriver):
     def clear(self) -> None:
         self.pixels = [(0, 0, 0)] * self.total_leds
         self.show()
+
+    def set_brightness(self, brightness: int) -> None:
+        self.brightness = brightness

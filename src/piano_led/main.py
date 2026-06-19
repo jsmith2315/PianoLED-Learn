@@ -63,10 +63,10 @@ def run_midi_loop(midi_input: MidoMidiInputPort, seconds: float | None) -> int:
     return 0
 
 
-def run_fastapi_server(host: str, port: int, runtime, seconds: float | None) -> int:
+def run_fastapi_server(host: str, port: int, application, seconds: float | None) -> int:
     """Run the FastAPI server, optionally stopping after a bounded duration."""
 
-    app = create_fastapi_app(runtime)
+    app = create_fastapi_app(application)
     config = uvicorn.Config(app, host=host, port=port, log_level="info")
     server = uvicorn.Server(config)
 
@@ -124,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("Configured MIDI backend is fake; web server will run without live MIDI input.")
         print(f"Serving Piano LED Learn at http://{args.host}:{args.port}")
         try:
-            return run_fastapi_server(args.host, args.port, application.runtime, args.seconds)
+            return run_fastapi_server(args.host, args.port, application, args.seconds)
         except KeyboardInterrupt:
             print("Stopped web server.")
         return 0
